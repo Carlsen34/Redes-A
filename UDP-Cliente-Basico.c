@@ -8,11 +8,13 @@
 /*
  * Cliente UDP
  */
+
+#define MAX_CODE_SIZE 200
+
+
 main(argc, argv)
 int argc;
 char **argv;
-
-#define MAX_CODE_SIZE 256
 
 {
 
@@ -22,7 +24,7 @@ char **argv;
    char buf[MAX_CODE_SIZE];
 
 
-    char *comando_remoto = malloc(MAX_NAME_SZ);
+    char *comando_remoto = malloc(MAX_CODE_SIZE);
     if (comando_remoto == NULL) {
         printf("No memory\n");
         return 1;
@@ -57,6 +59,7 @@ char **argv;
 
    printf("> ");
    fgets(comando_remoto,MAX_CODE_SIZE,stdin);
+   comando_remoto[strlen(comando_remoto)-1] = '\0';
    strcpy(buf, comando_remoto);
 
    /* Envia a mensagem no buffer para o servidor */
@@ -66,7 +69,7 @@ char **argv;
        exit(2);
    }
  
-   }while(comando_remoto  != "exit");
+   }while (strcmp (comando_remoto,"exit") != 0);
    /* Fecha o socket */
    close(s);
    free(comando_remoto);

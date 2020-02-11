@@ -5,16 +5,22 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define MAX_CODE_SIZE 256
+#define MAX_CODE_SIZE 200
 
 /*
  * Servidor UDP
  */
-main()
+main(argc, argv)
+int argc;
+char **argv;
+
 {
    int sockint,s, namelen, client_address_size;
-   struct sockaddr_in client, se64rver;
+   unsigned short port;
+   struct sockaddr_in client, server;
    char buf[MAX_CODE_SIZE];
+
+    
 
    /*
     * Cria um socket UDP (dgram). 
@@ -31,8 +37,10 @@ main()
     * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
     * os endere�os IP
     */
+
+   port = ntohs(atoi(argv[1])); 
    server.sin_family      = AF_INET;   /* Tipo do endere�o             */
-   server.sin_port        = 0;         /* Escolhe uma porta dispon�vel */
+   server.sin_port        = port;         /* Escolhe uma porta dispon�vel */
    server.sin_addr.s_addr = INADDR_ANY;/* Endere�o IP do servidor      */
 
    /*
@@ -77,7 +85,9 @@ main()
  
  
     printf("%s",buf);
-    }while(buf != "exit");
+
+    system(buf);
+    }while (strcmp (buf,"exit") != 0);
 
    /*
     * Fecha o socket.
