@@ -1,3 +1,8 @@
+/*
+Herick Valsecchi Carlsen 15159619
+João Pedro Favara 16061921
+Raissa Furlan Davinha 15032006
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -10,7 +15,7 @@
 /*
  * Servidor UDP
  */
-main(argc, argv)
+int main(argc, argv)
 int argc;
 char **argv;
 
@@ -18,7 +23,8 @@ char **argv;
    int sockint,s, namelen, client_address_size;
    unsigned short port;
    struct sockaddr_in client, server;
-   char buf[MAX_CODE_SIZE];
+   char buf[MAX_CODE_SIZE], answer[2000];
+   FILE *fp;
 
     
 
@@ -62,31 +68,47 @@ char **argv;
 
    /* Imprime qual porta foi utilizada. */
    printf("Porta utilizada � %d\n", ntohs(server.sin_port));
-   printf("IP utilizado � %d\n", ntohs(server.sin_addr.s_addr));
-
 
    /*
     * Recebe uma mensagem do cliente.
     * O endere�o do cliente ser� armazenado em "client".
     */
    do{
+    memset(answer, 0, sizeof(answer));
    client_address_size = sizeof(client);
-   if(recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *) &client,
-            &client_address_size) <0)
+   if(recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr *) &client, &client_address_size) <0)
    {
        perror("recvfrom()");
        exit(1);
    }
+   printf("command receive from client => %s\n", buf);
 
    /*
     * Imprime a mensagem recebida, o endere�o IP do cliente
     * e a porta do cliente 
     */
- 
- 
-    printf("%s",buf);
+    fp = popen(buf, "r");
+    if (fp == NULL)
+    {
+        printf("Failed to run command\n");
+        exit(1);
+    }
 
-    system(buf);
+    fread(answer, (sizeof(answer) + 1), 1, fp);
+
+    // Adiciona o \0 para enviar exatos 2000 caractéres
+    answer[1999] = '\0';
+
+    /* close */
+    pclose(fp);
+
+
+   if (sendto(s, answer, (strlen(answer)), 0, (struct sockaddr *)&client, sizeof(client)) < 0)
+   {
+       perror("sendto()");
+       exit(2);
+   }
+
     }while (strcmp (buf,"exit") != 0);
 
    /*

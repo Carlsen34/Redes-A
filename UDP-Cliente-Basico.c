@@ -1,3 +1,8 @@
+/*
+Herick Valsecchi Carlsen 15159619
+João Pedro Favara 16061921
+Raissa Furlan Davinha 15032006
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,17 +17,16 @@
 #define MAX_CODE_SIZE 200
 
 
-main(argc, argv)
+int main(argc, argv)
 int argc;
 char **argv;
 
 {
 
-   int s;
+   int s, server_address_size;
    unsigned short port;
-   struct sockaddr_in server;
-   char buf[MAX_CODE_SIZE];
-
+   struct sockaddr_in server, client;
+   char buf[MAX_CODE_SIZE], res[2000];
 
     char *comando_remoto = malloc(MAX_CODE_SIZE);
     if (comando_remoto == NULL) {
@@ -54,10 +58,10 @@ char **argv;
    server.sin_family      = AF_INET;            /* Tipo do endere�o         */
    server.sin_port        = port;               /* Porta do servidor        */
    server.sin_addr.s_addr = inet_addr(argv[1]); /* Endere�o IP do servidor  */
+
    do{
-
-
-   printf("> ");
+    memset(res, 0, sizeof(res));
+    printf("> ");
    fgets(comando_remoto,MAX_CODE_SIZE,stdin);
    comando_remoto[strlen(comando_remoto)-1] = '\0';
    strcpy(buf, comando_remoto);
@@ -68,8 +72,16 @@ char **argv;
        perror("sendto()");
        exit(2);
    }
+
+    if(recvfrom(s, res, sizeof(res), 0, (struct sockaddr *) &server, &server_address_size) <0)
+   {
+       perror("recvfrom()");
+       exit(1);
+   }
+   printf("%s\n", res);
  
-   }while (strcmp (comando_remoto,"exit") != 0);
+   } while (strcmp (comando_remoto,"exit") != 0);
+
    /* Fecha o socket */
    close(s);
    free(comando_remoto);
