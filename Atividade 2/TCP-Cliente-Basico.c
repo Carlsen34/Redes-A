@@ -22,21 +22,28 @@ char recvbuf[12];
 int s; 
 
 typedef struct {
-char Name [MaxNAME];
-char Msg [MaxMsg];
-int CountMsg;
+char Name[MaxNAME];
+char Msg[MaxMsg];
+int Aux_Informar_Servidor_Proc; //Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
 // Procedimento para opcao 1
 void adicionar_usuario_mensagens(){
-Obj obj;
-        printf("Usuario: \n");
-	
+    Obj obj;
+    obj.Aux_Informar_Servidor_Proc = 1;
+    char name[MaxNAME];
+    char msg[MaxMsg];
 
-	strcpy(obj.Name,"herick");
-	strcpy(obj.Msg,"mensagem");
 
-        printf("Mensagem: \n");
+    printf("Usuario: \n");
+	scanf("%s",&name);
+
+    printf("Mensagem: \n");
+	scanf("%s",&msg);
+
+    strcpy(obj.Name,name);
+	strcpy(obj.Msg,msg);
+
 
 	acessar_servidor(obj);
 	// adicionar usuario e mensagens a ser cadastradas
@@ -44,21 +51,35 @@ Obj obj;
 
 // Procedimento para opcao 2
 void encontrar_usuario_mensagens(){
+    Obj obj;
+    obj.Aux_Informar_Servidor_Proc = 2;
         printf("Mensagens cadastradas: \n");   
 	// encontrar todos os usuarios e suas mensagens cadastradas
 }
 
 // Procedimento para opcao 3
 void apagar_usuario_mensagens(){
-        printf("Usuario: \n");
+    Obj obj;
+    obj.Aux_Informar_Servidor_Proc = 3;
+    char name[MaxNAME];
+
+    printf("Usuario: \n");
+    scanf("%s",&name);
+    strcpy(obj.Name,name);
+
+
+    acessar_servidor(obj);
+
+
 	// encontrar usuario e apagar a mensagem ! *obs : retornar a mensagem removida
 
 }
 
-
+    // procedimento para enviar e receber mensagem do servidor
 void acessar_servidor(Obj obj ){
 
     strcpy(sendbuf, obj.Name);
+
 
     /* Envia a mensagem no buffer de envio para o servidor */
     if (send(s, sendbuf, strlen(sendbuf)+1, 0) < 0)
@@ -75,6 +96,8 @@ void acessar_servidor(Obj obj ){
         exit(6);
     }
     printf("Mensagem recebida do servidor: %s\n", recvbuf);
+
+
 }
 
 
