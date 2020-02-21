@@ -24,13 +24,13 @@ int s;
 typedef struct {
 char Name[MaxNAME];
 char Msg[MaxMsg];
-int Aux_Informar_Servidor_Proc; //Informar ao servidor qual procedimento foi realizado
+int Opcao; //Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
 // Procedimento para opcao 1
 void adicionar_usuario_mensagens(){
     Obj obj;
-    obj.Aux_Informar_Servidor_Proc = 1;
+    obj.Opcao = 1;
     char name[MaxNAME];
     char msg[MaxMsg];
 
@@ -52,7 +52,7 @@ void adicionar_usuario_mensagens(){
 // Procedimento para opcao 2
 void encontrar_usuario_mensagens(){
     Obj obj;
-    obj.Aux_Informar_Servidor_Proc = 2;
+    obj.Opcao = 2;
         printf("Mensagens cadastradas: \n");   
 	// encontrar todos os usuarios e suas mensagens cadastradas
 }
@@ -60,7 +60,7 @@ void encontrar_usuario_mensagens(){
 // Procedimento para opcao 3
 void apagar_usuario_mensagens(){
     Obj obj;
-    obj.Aux_Informar_Servidor_Proc = 3;
+    obj.Opcao = 3;
     char name[MaxNAME];
 
     printf("Usuario: \n");

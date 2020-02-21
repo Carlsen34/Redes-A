@@ -8,16 +8,91 @@
 /*
  * Servidor TCP
  */
+
+
+#define MaxNAME 20
+#define MaxMsg 80
+#define MaxArray 10
+
+
+typedef struct {
+char Name[MaxNAME];
+char Msg[MaxMsg];
+int Opcao; //Informar ao servidor qual procedimento foi realizado
+} Obj; 
+
+
+
+unsigned short port;       
+char sendbuf[12];              
+char recvbuf[12];              
+struct sockaddr_in client; 
+struct sockaddr_in server; 
+int s;                     /* Socket para aceitar conexoes       */
+int ns;                    /* Socket conectado ao cliente        */
+int namelen;
+int arrayMsgCount = 0;               
+
+void opcao_1(){
+printf("Opcao 1 \n");
+}
+
+void opcao_2(){
+printf("Opcao 2 \n");
+}
+
+
+void opcao_3(){
+printf("Opcao 3 \n");
+}
+void recebe_envia_mensagem(){
+
+   Obj obj[MaxArray];
+
+
+    /* Recebe uma mensagem do cliente atraves do novo socket conectado */
+    if (recv(ns, recvbuf, sizeof(recvbuf), 0) == -1)
+    {
+        perror("Recv()");
+        exit(6);
+    }
+    strcpy(obj[arrayMsgCount].Name,recvbuf);
+    printf("Mensagem recebida do cliente: %s\n", recvbuf);
+
+    //switch (obj[arrayMsgCount].Opcao){
+        int teste = 1;
+      switch (teste){
+    case 1:
+	opcao_1();
+        break;
+    case 2:
+	opcao_2();
+        break;
+    case 3:
+	opcao_3();
+        break;
+    default:
+	printf("Opcao invalida \n");
+      }
+
+    strcpy(sendbuf,obj[arrayMsgCount].Name);
+    
+    /* Envia uma mensagem ao cliente atraves do socket conectado */
+    if (send(ns, sendbuf, strlen(sendbuf)+1, 0) < 0)
+    {
+        perror("Send()");
+        exit(7);
+    }
+    printf("Mensagem enviada ao cliente: %s\n", sendbuf);
+
+    arrayMsgCount++;
+
+
+}
+
+
 int main(int argc, char **argv)
 {
-    unsigned short port;       
-    char sendbuf[12];              
-    char recvbuf[12];              
-    struct sockaddr_in client; 
-    struct sockaddr_in server; 
-    int s;                     /* Socket para aceitar conexoes       */
-    int ns;                    /* Socket conectado ao cliente        */
-    int namelen;               
 
     /*
      * O primeiro argumento (argv[1]) e a porta
@@ -79,28 +154,12 @@ int main(int argc, char **argv)
         exit(5);
     }
 
-    /* Recebe uma mensagem do cliente atraves do novo socket conectado */
-    if (recv(ns, recvbuf, sizeof(recvbuf), 0) == -1)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-    printf("Mensagem recebida do cliente: %s\n", recvbuf);
-
-    strcpy(sendbuf, "Resposta");
-    
-    /* Envia uma mensagem ao cliente atraves do socket conectado */
-    if (send(ns, sendbuf, strlen(sendbuf)+1, 0) < 0)
-    {
-        perror("Send()");
-        exit(7);
-    }
-    printf("Mensagem enviada ao cliente: %s\n", sendbuf);
+    recebe_envia_mensagem();
 
     /* Fecha o socket conectado ao cliente */
     close(ns);
 
-    /* Fecha o socket aguardando por conexões */
+    /* Fecha o socket aguardando por conexï¿½es */
     close(s);
 
     printf("Servidor terminou com sucesso.\n");
