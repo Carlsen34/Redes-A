@@ -15,11 +15,7 @@
 
 #define MaxNAME 20
 #define MaxMsg 80
-
-
-char sendbuf[12];              
-char recvbuf[12]; 
-int s; 
+#define MaxArray 10
 
 typedef struct {
 char Name[MaxNAME];
@@ -27,7 +23,36 @@ char Msg[MaxMsg];
 int Opcao; //Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
-// Procedimento para opcao 1
+
+char sendbuf[12];
+char recvbuf[200];
+int s;
+Obj objStore;
+
+// procedimento para enviar e receber mensagem do servidor
+void acessar_servidor(Obj obj){
+
+    // strcpy(sendbuf, obj.Name);
+
+
+    /* Envia a mensagem no buffer de envio para o servidor */
+    if (send(s, &obj, (sizeof(obj)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+    printf("Mensagem enviada ao servidor\n");
+
+    /* Recebe a mensagem do servidor no buffer de recepcao */
+    if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
+    {
+        perror("Recv()");
+        exit(6);
+    }
+    printf("%s\n", recvbuf);
+};
+
+// Procedimento para opcao 1 -  Cadastrar mensagem
 void adicionar_usuario_mensagens(){
     Obj obj;
     obj.Opcao = 1;
@@ -36,10 +61,12 @@ void adicionar_usuario_mensagens(){
 
 
     printf("Usuario: \n");
-	scanf("%s",&name);
+    memset(name, 0, sizeof(name));
+	scanf("%s", name);
 
     printf("Mensagem: \n");
-	scanf("%s",&msg);
+    memset(msg, 0, sizeof(msg));
+    scanf("%s", msg);
 
     strcpy(obj.Name,name);
 	strcpy(obj.Msg,msg);
@@ -47,64 +74,68 @@ void adicionar_usuario_mensagens(){
 
 	acessar_servidor(obj);
 	// adicionar usuario e mensagens a ser cadastradas
+};
+
+void printMessages(int sizeOfObjStore) {
+
+    for(int i = 0; i < sizeOfObjStore; i++) {
+        memset(&objStore, 0, sizeof(objStore));
+        if (recv(s, &objStore, sizeof(objStore), 0) < 0)
+        {
+            perror("Recv()");
+            exit(6);
+        }
+        printf("Usuario: %s  ", objStore.Name);
+        printf("Mensagem: %s\n", objStore.Msg);
+    }
 }
 
-// Procedimento para opcao 2
+// Procedimento para opcao 2 -  Ler mensagens 
 void encontrar_usuario_mensagens(){
     Obj obj;
     obj.Opcao = 2;
-        printf("Mensagens cadastradas: \n");   
-	// encontrar todos os usuarios e suas mensagens cadastradas
-}
+    strcpy(obj.Name,"");
+    strcpy(obj.Msg,"");
 
-// Procedimento para opcao 3
+    int sizeOfObjStore = 0;
+
+    if (send(s, &obj, (sizeof(obj)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+    printf("Mensagem enviada ao servidor - opcao 2\n");
+
+    if (recv(s, &sizeOfObjStore, sizeof(sizeOfObjStore), 0) < 0)
+    {
+        perror("Recv()");
+        exit(6);
+    }
+
+    printf("sizeOfObjStore: %d\n", sizeOfObjStore);
+    printMessages(sizeOfObjStore);
+
+	// encontrar todos os usuarios e suas mensagens cadastradas
+};
+
+// Procedimento para opcao 3 - Apagar mensagens 
 void apagar_usuario_mensagens(){
     Obj obj;
     obj.Opcao = 3;
     char name[MaxNAME];
 
     printf("Usuario: \n");
-    scanf("%s",&name);
+    scanf("%19s", name);
     strcpy(obj.Name,name);
 
 
     acessar_servidor(obj);
-
-
 	// encontrar usuario e apagar a mensagem ! *obs : retornar a mensagem removida
 
-}
-
-    // procedimento para enviar e receber mensagem do servidor
-void acessar_servidor(Obj obj ){
-
-    strcpy(sendbuf, obj.Name);
-
-
-    /* Envia a mensagem no buffer de envio para o servidor */
-    if (send(s, sendbuf, strlen(sendbuf)+1, 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-    printf("Mensagem enviada ao servidor: %s\n", sendbuf);
-
-    /* Recebe a mensagem do servidor no buffer de recepcao */
-    if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-    printf("Mensagem recebida do servidor: %s\n", recvbuf);
-
-
-}
-
-
+};
 
 
 // MAIN FUNCTION
-
 int main(int argc, char **argv)
 {
     unsigned short port;       
@@ -145,10 +176,8 @@ int main(int argc, char **argv)
 
 
    /*
-
-     * Cria um socket TCP (stream)
-
-     */
+    * Cria um socket TCP (stream)
+    */
     if ((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("Socket()");

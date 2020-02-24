@@ -5,6 +5,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <stdbool.h>
+
 /*
  * Servidor TCP
  */
@@ -21,73 +23,93 @@ char Msg[MaxMsg];
 int Opcao; //Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
-
-
-unsigned short port;       
-char sendbuf[12];              
-char recvbuf[12];              
+unsigned short port;
+char sendbuf[12];
+char recvbuf[12];
+Obj objStore[MaxArray];
+Obj receiveMsg;
 struct sockaddr_in client; 
 struct sockaddr_in server; 
 int s;                     /* Socket para aceitar conexoes       */
 int ns;                    /* Socket conectado ao cliente        */
 int namelen;
-int arrayMsgCount = 0;               
+int arrayMsgCount = 0;
 
-void opcao_1(){
-printf("Opcao 1 \n");
+void retorno_cliente(char retornoMsg[200]) {
+    /* Envia uma mensagem ao cliente atraves do socket conectado */
+    if (send(ns, retornoMsg, strlen(retornoMsg)+1, 0) < 0)
+    {
+        perror("Send()");
+        exit(7);
+    }
+}
+
+void opcao_1(Obj rcv){
+    printf("Opcao 1 \n");
+    if (arrayMsgCount < 10) {
+        printf("Nome recebido do cliente: %s\n", receiveMsg.Name);
+        printf("Mensagem recebida do cliente: %s\n", receiveMsg.Msg);
+        printf("Opcao recebida do cliente: %d\n", receiveMsg.Opcao);
+
+        objStore[arrayMsgCount] = rcv;
+        arrayMsgCount++;
+
+        retorno_cliente("Mensagem salva com sucesso!\n");
+    } else {
+        retorno_cliente("Nao foi possivel inserir uma nova mensagem\n");
+    }
+
 }
 
 void opcao_2(){
-printf("Opcao 2 \n");
+    printf("Opcao 2 \n");
+    if (send(ns, &arrayMsgCount, sizeof(arrayMsgCount), 0) < 0)
+    {
+        perror("Send()");
+        exit(7);
+    }
+
+    for(int i = 0; i < arrayMsgCount; i++) {
+        if (send(ns, &objStore[i], sizeof(objStore[i]), 0) < 0)
+        {
+            perror("Send()");
+            exit(7);
+        }
+    }
 }
 
 
 void opcao_3(){
 printf("Opcao 3 \n");
 }
+
+
 void recebe_envia_mensagem(){
+     bool variavelLoop = false;
+    do {
+        /* Recebe uma mensagem do cliente atraves do novo socket conectado */
+        if (recv(ns, &receiveMsg, sizeof(receiveMsg), 0) == -1)
+        {
+            perror("Recv()");
+            exit(6);
+        }
 
-   Obj obj[MaxArray];
-
-
-    /* Recebe uma mensagem do cliente atraves do novo socket conectado */
-    if (recv(ns, recvbuf, sizeof(recvbuf), 0) == -1)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-    strcpy(obj[arrayMsgCount].Name,recvbuf);
-    printf("Mensagem recebida do cliente: %s\n", recvbuf);
-
-    //switch (obj[arrayMsgCount].Opcao){
-        int teste = 1;
-      switch (teste){
-    case 1:
-	opcao_1();
-        break;
-    case 2:
-	opcao_2();
-        break;
-    case 3:
-	opcao_3();
-        break;
-    default:
-	printf("Opcao invalida \n");
-      }
-
-    strcpy(sendbuf,obj[arrayMsgCount].Name);
-    
-    /* Envia uma mensagem ao cliente atraves do socket conectado */
-    if (send(ns, sendbuf, strlen(sendbuf)+1, 0) < 0)
-    {
-        perror("Send()");
-        exit(7);
-    }
-    printf("Mensagem enviada ao cliente: %s\n", sendbuf);
-
-    arrayMsgCount++;
-
-
+        switch (receiveMsg.Opcao){
+        case 1:
+        opcao_1(receiveMsg);
+            break;
+        case 2:
+        opcao_2();
+            break;
+        case 3:
+        opcao_3();
+            break;
+        case 4: 
+            variavelLoop = true;
+        default:
+        retorno_cliente("Opcao invalida \n");
+        }
+    } while(!variavelLoop);
 }
 
 
@@ -123,6 +145,10 @@ int main(int argc, char **argv)
     server.sin_family = AF_INET;   
     server.sin_port   = htons(port);       
     server.sin_addr.s_addr = INADDR_ANY;
+
+    /* Imprime qual porta E IP foram utilizados. */
+    printf("Porta utilizada � %d\n", ntohs(server.sin_port));
+    printf("IP utilizado � %d\n", ntohs(server.sin_addr.s_addr));
 
     /*
      * Liga o servidor a porta definida anteriormente.
