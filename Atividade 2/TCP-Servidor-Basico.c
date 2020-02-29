@@ -27,6 +27,7 @@ unsigned short port;
 char sendbuf[12];
 char recvbuf[12];
 Obj objStore[MaxArray];
+Obj objStoreAux[MaxArray];
 Obj receiveMsg;
 struct sockaddr_in client; 
 struct sockaddr_in server; 
@@ -45,11 +46,10 @@ void retorno_cliente(char retornoMsg[200]) {
 }
 
 void opcao_1(Obj rcv){
-    printf("Opcao 1 \n");
+   
     if (arrayMsgCount < 10) {
-        printf("Nome recebido do cliente: %s\n", receiveMsg.Name);
-        printf("Mensagem recebida do cliente: %s\n", receiveMsg.Msg);
-        printf("Opcao recebida do cliente: %d\n", receiveMsg.Opcao);
+        printf("\nNome recebido do cliente:%s\n", receiveMsg.Name);
+        printf("\nMensagem recebida do cliente:%s\n", receiveMsg.Msg);
 
         objStore[arrayMsgCount] = rcv;
         arrayMsgCount++;
@@ -62,7 +62,6 @@ void opcao_1(Obj rcv){
 }
 
 void opcao_2(){
-    printf("Opcao 2 \n");
     if (send(ns, &arrayMsgCount, sizeof(arrayMsgCount), 0) < 0)
     {
         perror("Send()");
@@ -80,7 +79,16 @@ void opcao_2(){
 
 
 void opcao_3(){
-printf("Opcao 3 \n");
+    for(int i = 0; i < arrayMsgCount; i++) {
+        printf("\nMensagem Removida:%s\n",objStore[i].Msg);
+    if (send(ns, objStore[i].Msg, strlen(objStore[i].Msg)+1, 0) < 0)
+    {
+        perror("Send()");
+        exit(7);
+    }
+
+    }
+
 }
 
 
@@ -147,8 +155,8 @@ int main(int argc, char **argv)
     server.sin_addr.s_addr = INADDR_ANY;
 
     /* Imprime qual porta E IP foram utilizados. */
-    printf("Porta utilizada � %d\n", ntohs(server.sin_port));
-    printf("IP utilizado � %d\n", ntohs(server.sin_addr.s_addr));
+    printf("\nPorta utilizada � %d\n", ntohs(server.sin_port));
+    printf("\nIP utilizado � %d\n", ntohs(server.sin_addr.s_addr));
 
     /*
      * Liga o servidor a porta definida anteriormente.
@@ -188,7 +196,7 @@ int main(int argc, char **argv)
     /* Fecha o socket aguardando por conex�es */
     close(s);
 
-    printf("Servidor terminou com sucesso.\n");
+    printf("\nServidor terminou com sucesso.\n");
     exit(0);
 }
 

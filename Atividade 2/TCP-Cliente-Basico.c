@@ -29,6 +29,32 @@ char recvbuf[200];
 int s;
 Obj objStore;
 
+
+// procedimento para apagar mensagem (opcao 3)
+void acessar_servidor_apagar_mensagem(Obj obj){
+    
+    // strcpy(sendbuf, obj.Name);
+
+
+    /* Envia a mensagem no buffer de envio para o servidor */
+    if (send(s, &obj, (sizeof(obj)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+    printf("\nMensagem enviada ao servidor\n");
+
+    /* Recebe a mensagem do servidor no buffer de recepcao */
+    if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
+    {
+        perror("Recv()");
+        exit(6);
+    }
+    printf("%s\n", recvbuf);
+
+}
+
+
 // procedimento para enviar e receber mensagem do servidor
 void acessar_servidor(Obj obj){
 
@@ -41,7 +67,7 @@ void acessar_servidor(Obj obj){
         perror("Send()");
         exit(5);
     }
-    printf("Mensagem enviada ao servidor\n");
+    printf("\nMensagem enviada ao servidor\n");
 
     /* Recebe a mensagem do servidor no buffer de recepcao */
     if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
@@ -60,11 +86,11 @@ void adicionar_usuario_mensagens(){
     char msg[MaxMsg];
 
 
-    printf("Usuario: \n");
+    printf("\nUsuario: \n");
     memset(name, 0, sizeof(name));
 	scanf("%s", name);
 
-    printf("Mensagem: \n");
+    printf("\nMensagem: \n");
     memset(msg, 0, sizeof(msg));
     scanf("%s", msg);
 
@@ -85,8 +111,8 @@ void printMessages(int sizeOfObjStore) {
             perror("Recv()");
             exit(6);
         }
-        printf("Usuario: %s  ", objStore.Name);
-        printf("Mensagem: %s\n", objStore.Msg);
+        printf("\nUsuario: %s  ", objStore.Name);
+        printf("\nMensagem: %s\n", objStore.Msg);
     }
 }
 
@@ -104,7 +130,7 @@ void encontrar_usuario_mensagens(){
         perror("Send()");
         exit(5);
     }
-    printf("Mensagem enviada ao servidor - opcao 2\n");
+    printf("\nMensagem enviada ao servidor - opcao 2\n");
 
     if (recv(s, &sizeOfObjStore, sizeof(sizeOfObjStore), 0) < 0)
     {
@@ -112,7 +138,6 @@ void encontrar_usuario_mensagens(){
         exit(6);
     }
 
-    printf("sizeOfObjStore: %d\n", sizeOfObjStore);
     printMessages(sizeOfObjStore);
 
 	// encontrar todos os usuarios e suas mensagens cadastradas
@@ -124,12 +149,12 @@ void apagar_usuario_mensagens(){
     obj.Opcao = 3;
     char name[MaxNAME];
 
-    printf("Usuario: \n");
+    printf("\nUsuario: \n");
     scanf("%19s", name);
     strcpy(obj.Name,name);
 
 
-    acessar_servidor(obj);
+    acessar_servidor_apagar_mensagem(obj);
 	// encontrar usuario e apagar a mensagem ! *obs : retornar a mensagem removida
 
 };
@@ -197,7 +222,7 @@ int main(int argc, char **argv)
      */
     do{
     variavelLoop = false;
-    printf(" 1 - Cadastrar mensagem \n 2 - Ler mensagens \n 3 - Apagar mensagens \n 4 - Sair da Aplicacao \n");
+    printf("\n 1 - Cadastrar mensagem \n 2 - Ler mensagens \n 3 - Apagar mensagens \n 4 - Sair da Aplicacao \n");
     scanf("%d", &choice);
 
 
@@ -213,12 +238,12 @@ int main(int argc, char **argv)
 	apagar_usuario_mensagens();
         break;
     case 4:
-        printf("Fim de aplicação \n");
+        printf("\nFim de aplicação \n");
 	variavelLoop = true;
 
         break;
     default:
-	printf("Opcao invalida \n");
+	printf("\nOpcao invalida \n");
 
     }
 }while(!variavelLoop);
@@ -226,7 +251,7 @@ int main(int argc, char **argv)
     /* Fecha o socket */
     close(s);
 
-    printf("Cliente terminou com sucesso.\n");
+    printf("\nCliente terminou com sucesso.\n");
     exit(0);
 
 }
