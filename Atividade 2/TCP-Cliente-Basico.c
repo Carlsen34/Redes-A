@@ -50,7 +50,7 @@ void acessar_servidor_apagar_mensagem(Obj obj){
         perror("Recv()");
         exit(6);
     }
-    printf("%s\n", recvbuf);
+    printf("Mensagem: %s\n", recvbuf);
 
 }
 

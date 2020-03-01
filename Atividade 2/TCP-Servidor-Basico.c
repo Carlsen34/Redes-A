@@ -18,9 +18,9 @@
 
 
 typedef struct {
-char Name[MaxNAME];
-char Msg[MaxMsg];
-int Opcao; //Informar ao servidor qual procedimento foi realizado
+	char Name[MaxNAME];
+	char Msg[MaxMsg];
+	int Opcao; 		//Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
 unsigned short port;
@@ -45,11 +45,12 @@ void retorno_cliente(char retornoMsg[200]) {
     }
 }
 
+//opcao 1
 void opcao_1(Obj rcv){
    
     if (arrayMsgCount < 10) {
-        printf("\nNome recebido do cliente:%s\n", receiveMsg.Name);
-        printf("\nMensagem recebida do cliente:%s\n", receiveMsg.Msg);
+        printf("\nNome:%s\n", receiveMsg.Name);
+        printf("\nMensagem:%s\n", receiveMsg.Msg);
 
         objStore[arrayMsgCount] = rcv;
         arrayMsgCount++;
@@ -61,6 +62,7 @@ void opcao_1(Obj rcv){
 
 }
 
+//opcao 2
 void opcao_2(){
     if (send(ns, &arrayMsgCount, sizeof(arrayMsgCount), 0) < 0)
     {
@@ -77,18 +79,23 @@ void opcao_2(){
     }
 }
 
-
-void opcao_3(){
-    for(int i = 0; i < arrayMsgCount; i++) {
-        printf("\nMensagem Removida:%s\n",objStore[i].Msg);
-    if (send(ns, objStore[i].Msg, strlen(objStore[i].Msg)+1, 0) < 0)
-    {
-        perror("Send()");
-        exit(7);
+//opcao 3
+void opcao_3(Obj rcv){
+	for(int i = 0; i < arrayMsgCount; i++) {
+		if(strcmp(rcv.Name, objStore[i].Name) == 0) {
+			printf("\nMensagem Removida:%s\n",objStore[i].Msg);
+    		if (send(ns, objStore[i].Msg, strlen(objStore[i].Msg)+1, 0) < 0){
+    	    	perror("Send()");
+    		    exit(7);
+    		}
+			/* Ajusta vetor: Desloca todos as mensagens uma posicao */ 
+			for(int j = i; j < arrayMsgCount-1; j++ ){
+                objStore[ j ] = objStore[ j + 1 ];
+			}
+			i--;
+			arrayMsgCount--;
+		}
     }
-
-    }
-
 }
 
 
@@ -110,7 +117,7 @@ void recebe_envia_mensagem(){
         opcao_2();
             break;
         case 3:
-        opcao_3();
+        opcao_3(receiveMsg);
             break;
         case 4: 
             variavelLoop = true;
