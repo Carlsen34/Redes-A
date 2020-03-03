@@ -81,13 +81,27 @@ void opcao_2(){
 
 //opcao 3
 void opcao_3(Obj rcv){
-	for(int i = 0; i < arrayMsgCount; i++) {
-		if(strcmp(rcv.Name, objStore[i].Name) == 0) {
+    int i;
+    printf("Numero de MSG: %d \n",arrayMsgCount);
+
+	for(i = 0; i < arrayMsgCount; i++) {
+        printf("%s \n",objStore[i].Name);
+        printf("%s \n", rcv.Name);
+   
+        printf("%d",strlen(objStore[i].Name));     
+        printf("%d",strlen(rcv.Name));     
+
+
+	if(strcmp(rcv.Name,objStore[i].Name) == 0) {
+
+        printf("Entrou no strcmp \n");
+
 			printf("\nMensagem Removida:%s\n",objStore[i].Msg);
     		if (send(ns, objStore[i].Msg, strlen(objStore[i].Msg)+1, 0) < 0){
     	    	perror("Send()");
     		    exit(7);
     		}
+            
 			/* Ajusta vetor: Desloca todos as mensagens uma posicao */ 
 			for(int j = i; j < arrayMsgCount-1; j++ ){
                 objStore[ j ] = objStore[ j + 1 ];

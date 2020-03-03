@@ -87,12 +87,17 @@ void adicionar_usuario_mensagens(){
 
 
     printf("\nUsuario: \n");
+    __fpurge(stdin);
     memset(name, 0, sizeof(name));
-	scanf("%s", name);
+    fgets(name,sizeof(name),stdin);
+    strtok(name,"\n");
 
     printf("\nMensagem: \n");
+    __fpurge(stdin);
     memset(msg, 0, sizeof(msg));
-    scanf("%s", msg);
+    fgets(msg,sizeof(msg),stdin);
+    strtok(name,"\n");
+
 
     strcpy(obj.Name,name);
 	strcpy(obj.Msg,msg);
