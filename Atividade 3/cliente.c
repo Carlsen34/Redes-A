@@ -12,7 +12,7 @@
 /*
  * Cliente TCP
  */
-
+ 
 #define MaxNAME 20
 #define MaxMsg 80
 #define MaxArray 10
@@ -23,12 +23,10 @@ char Msg[MaxMsg];
 int Opcao; //Informar ao servidor qual procedimento foi realizado
 } Obj; 
 
-
 char sendbuf[12];
 char recvbuf[200];
 int s;
 Obj objStore;
-
 
 // procedimento para apagar mensagem (opcao 3)
 void acessar_servidor_apagar_mensagem(Obj obj){
@@ -168,13 +166,14 @@ void apagar_usuario_mensagens(){
 // MAIN FUNCTION
 int main(int argc, char **argv)
 {
-    unsigned short port;       
-             
-    struct hostent *hostnm;    
-    struct sockaddr_in server; 
+    unsigned short port;
+    char sendbuf[12];
+    char recvbuf[12];
+    struct hostent *hostnm;
+    struct sockaddr_in server;
+    int s;
     int choice;
     bool variavelLoop = true;
-
 
     /*
      * O primeiro argumento (argv[1]) e o hostname do servidor.
@@ -205,9 +204,9 @@ int main(int argc, char **argv)
     server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
 
 
-   /*
-    * Cria um socket TCP (stream)
-    */
+    /*
+     * Cria um socket TCP (stream)
+     */
     if ((s = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("Socket()");
@@ -221,7 +220,7 @@ int main(int argc, char **argv)
         exit(4);
     }
 
-    /*
+       /*
      * Criar Switch Case + Input de dados
      */
     do{
@@ -252,10 +251,26 @@ int main(int argc, char **argv)
     }
 }while(!variavelLoop);
 
+    /* Envia a mensagem no buffer de envio para o servidor */
+    // if (send(s, sendbuf, strlen(sendbuf)+1, 0) < 0)
+    // {
+    //     perror("Send()");
+    //     exit(5);
+    // }
+    // printf("Mensagem enviada ao servidor: %s\n", sendbuf);
+
+    // /* Recebe a mensagem do servidor no buffer de recepcao */
+    // if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
+    // {
+    //     perror("Recv()");
+    //     exit(6);
+    // }
+    // printf("Mensagem recebida do servidor: %s\n", recvbuf);
+
     /* Fecha o socket */
     close(s);
 
-    printf("\nCliente terminou com sucesso.\n");
+    printf("Cliente terminou com sucesso.\n");
     exit(0);
 
 }
