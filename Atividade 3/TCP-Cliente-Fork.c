@@ -1,3 +1,10 @@
+/*
+Herick Valsecchi Carlsen 15159619
+João Pedro Favara 16061921
+Raissa Furlan Davinha 15032006
+Leonardo Blanco Natis 15296858
+Kaíque Ferreira Fávero 15118698
+*/
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -55,14 +62,14 @@ void adicionar_usuario_mensagens(){
     char msg[MaxMsg];
 
     printf("\nUsuario: \n");
-    __fpurge(stdin);
+    fpurge(stdin);
     //getchar();
     memset(name, 0, sizeof(name));
     fgets(name,sizeof(name),stdin);
     strtok(name,"\n");
 
     printf("\nMensagem: \n");
-    __fpurge(stdin);
+    fpurge(stdin);
     //getchar();
     memset(msg, 0, sizeof(msg));
     fgets(msg,sizeof(msg),stdin);

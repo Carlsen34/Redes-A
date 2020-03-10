@@ -1,3 +1,10 @@
+/*
+Herick Valsecchi Carlsen 15159619
+João Pedro Favara 16061921
+Raissa Furlan Davinha 15032006
+Leonardo Blanco Natis 15296858
+Kaíque Ferreira Fávero 15118698
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
