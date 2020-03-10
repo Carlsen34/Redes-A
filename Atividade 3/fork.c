@@ -25,7 +25,7 @@
 #define MaxNAME 20
 #define MaxMsg 80
 #define MaxArray 10
-#define SHM_KEY 0x2000
+#define SHM_KEY 0x1024
 #define SEM_PERMS 0666
 #define SEM_KEY_A 9034
 
@@ -134,10 +134,8 @@ void setup_shared_memory() {
 	}
 
 	for(int i = 0; i < MaxArray; i++) {
-		Obj obj;
-		strcpy(obj.Name, "null");
-		strcpy(obj.Msg, "null");
-		objStore->store[i] = obj;
+		strcpy(objStore->store[i].Name, "");
+		strcpy(objStore->store[i].Msg, "");
 	}
 	objStore->arrayObjCount = 0;
 
@@ -159,13 +157,12 @@ void retorno_cliente(char retornoMsg[200]) {
 
 //opcao 1
 void opcao_1(Obj rcv){
-   
 	lockSemaphore(semaphore_id_A);
     if (objStore->arrayObjCount < 10) {
 		int i = 0;
 		int saved = 0;
 		do{
-			if((strcmp("null", objStore->store[i].Name)) == 0) {
+			if((strcmp("", objStore->store[i].Name)) == 0) {
 				strcpy(objStore->store[i].Name, rcv.Name);
 				strcpy(objStore->store[i].Msg, rcv.Msg);
 				objStore->arrayObjCount++;
@@ -174,7 +171,7 @@ void opcao_1(Obj rcv){
 			i++;
 
 		}while(saved != 1 && i < MaxArray);
-		unlockSemaphore(semaphore_id_A);
+	unlockSemaphore(semaphore_id_A);
 
         retorno_cliente("\nMensagem salva com sucesso!\n");
     } else {
@@ -185,32 +182,27 @@ void opcao_1(Obj rcv){
 //opcao 2
 void opcao_2(){
 	lockSemaphore(semaphore_id_A);
-	int arrayObjCount = 0;
-	// printf("sizeof(objStore->arrayObjCount) >>> %lu", sizeof(objStore->arrayObjCount));
-	// printf("opcao_2 - arrayObjCount >>> %i\n", arrayObjCount);
+	int objAuxCount = 0;
+	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 	for(int i = 0; i < MaxArray; i++) {
-		printf("opcao 2 - objStore->store[%i].Name: %s\n", i , objStore->store[i].Name);
-		if((strcmp("null", objStore->store[i].Name)) != 0) {
-			arrayObjCount++;
+		if((strcmp("", objStore->store[i].Name)) != 0) {
+			strcpy(objAux[objAuxCount].Name, objStore->store[i].Name);
+			strcpy(objAux[objAuxCount].Msg, objStore->store[i].Msg);
+			objAuxCount++;
 		}
 	}
 
-	printf("opcao 2 - arrayObjCount >>> %d\n", arrayObjCount);
-
-    if (send(ns, &arrayObjCount, sizeof(arrayObjCount), 0) < 0) {
+    if (send(ns, &objAuxCount, sizeof(objAuxCount), 0) < 0) {
         perror("Send()");
         exit(7);
     }
 
-	if ( arrayObjCount >= 1) {
-		for(int i = 0; i < MaxArray; i++) {
-			if (strcmp("null", objStore->store[i].Name) != 0) {
-				printf("\nopcao 2 - objStore->store[%i].Name 2: %s\n", i , objStore->store[i].Name);
-				if (send(ns, &objStore->store[i], sizeof(objStore->store[i]), 0) < 0)
-				{
-					perror("Send()");
-					exit(7);
-				}
+	if ( objAuxCount >= 1) {
+		for(int i = 0; i < objAuxCount; i++) {
+			if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0)
+			{
+				perror("Send()");
+				exit(7);
 			}
 		}
 	}
@@ -221,33 +213,22 @@ void opcao_2(){
 void opcao_3(Obj rcv){
 	int mensagensRemovidas = 0; // contadora para receber quantas mensagens foram apagadas
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
-	Obj obj;
 
 	lockSemaphore(semaphore_id_A);
 	for(int i = 0; i < MaxArray; i++) {
 		if((strcmp(rcv.Name,objStore->store[i].Name)) == 0) {
-			printf("objStore->store[%i].Name: %s\n", i, objStore->store[i].Name);
-			// printf("objStore->store[%i].Msg: %s\n", i, objStore->store[i].Msg);
 			strcpy(objAux[mensagensRemovidas].Name, objStore->store[i].Name);
 			strcpy(objAux[mensagensRemovidas].Msg, objStore->store[i].Msg);
 
-			strcpy(objStore->store[i].Name, "null");
-			strcpy(objStore->store[i].Msg, "null");
-			// printf("objStore->store[%i].Name 2: %s\n", i, objStore->store[i].Name);
-			// printf("objStore->store[%i].Msg 2: %s\n", i, objStore->store[i].Msg);
+			strcpy(objStore->store[i].Name, "");
+			strcpy(objStore->store[i].Msg, "");
+
+			objStore->arrayObjCount--;
 			mensagensRemovidas++;
 		}
 	}
 	unlockSemaphore(semaphore_id_A);
 
-	// printf("Mensagens removidas: %i\n", mensagensRemovidas);
-	// for(int i = 0; i < MaxArray; i++) {
-	// 	printf("objStore->store[%i].Name: %s\n", i, objStore->store[i].Name);
-	// 	printf("objStore->store[%i].Msg: %s\n", i, objStore->store[i].Msg);
-	// }
-
-	// objStore->arrayObjCount = objStore->arrayObjCount - mensagensRemovidas; // pega o valor certo para a variavel
-	// printf("opcao_3 - objStore->arrayObjCount > %i\n", objStore->arrayObjCount);
 
 	// enviar a quantidade de mensagens apagadas
 	if (send(ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
@@ -257,7 +238,7 @@ void opcao_3(Obj rcv){
 
 	// enviar quais foram as mensagens apagadas
 	for(int i = 0; i < mensagensRemovidas; i++) {
-		if (send(ns, &objAux, sizeof(objAux), 0) < 0) {
+		if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0) {
 			perror("Send()");
 			exit(7);
 		}

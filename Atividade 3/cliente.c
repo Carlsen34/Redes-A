@@ -55,15 +55,15 @@ void adicionar_usuario_mensagens(){
     char msg[MaxMsg];
 
     printf("\nUsuario: \n");
-    // __fpurge(stdin);
-    getchar();
+    __fpurge(stdin);
+    //getchar();
     memset(name, 0, sizeof(name));
     fgets(name,sizeof(name),stdin);
     strtok(name,"\n");
 
     printf("\nMensagem: \n");
-    // __fpurge(stdin);
-    getchar();
+    __fpurge(stdin);
+    //getchar();
     memset(msg, 0, sizeof(msg));
     fgets(msg,sizeof(msg),stdin);
     strtok(name,"\n");
@@ -113,9 +113,9 @@ void encontrar_usuario_mensagens(){
     }
 
     printf("\nMensagens cadastrada(s): %i\n", sizeOfObjStore);
-    if (sizeOfObjStore >= 1) {
+    // if (sizeOfObjStore >= 1) {
         printMessages(sizeOfObjStore); // encontrar todos os usuarios e suas mensagens cadastradas
-    }
+    // }
 };
 
 // Procedimento para opcao 3 - Apagar mensagens 
