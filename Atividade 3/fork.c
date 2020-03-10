@@ -7,6 +7,16 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <errno.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <sys/ipc.h> /* for msgget(), msgctl() */ //faltando sys
+#include <sys/msg.h> /* for msgget(), msgctl() */ //faltando sys
+#include <sys/shm.h>
+#include <sys/sem.h>
+
 
 /*
  * Servidor TCP
@@ -15,26 +25,128 @@
 #define MaxNAME 20
 #define MaxMsg 80
 #define MaxArray 10
+#define SHM_KEY 0x2000
+#define SEM_PERMS 0666
+#define SEM_KEY_A 9034
 
-typedef struct {
-	char Name[MaxNAME];
-	char Msg[MaxMsg];
-	int Opcao;	//Informar ao servidor qual procedimento foi realizado
-} Obj;
+	struct sembuf semaphore_lock_op[1];   // Struct containing a lock operation
+	struct sembuf semaphore_unlock_op[1]; // Struct containing an unlock operation
 
+	typedef struct Obj {
+		char Name[MaxNAME];
+		char Msg[MaxMsg];
+		int Opcao;	//Informar ao servidor qual procedimento foi realizado
+	} Obj;
+
+	typedef struct {
+		struct Obj store[MaxArray];
+		int arrayObjCount;	//Informar qual a proxima posicao para ser utilizada
+	} ObjStore;
+
+	int semaphore_id_A;
     unsigned short port;
     char sendbuf[12];
     char recvbuf[12];
-	Obj objStore[MaxArray];
-	Obj objStoreAux[MaxArray];
+	ObjStore *objStore;
 	Obj receiveMsg;
+	int shmid;
 	struct sockaddr_in client; 
     struct sockaddr_in server; 
     int s;                     /* Socket para aceitar conexoes       */
     int ns;                    /* Socket conectado ao cliente        */
     int namelen;
     pid_t pid, fid;
-	int arrayMsgCount = 0;
+
+void setup_semaforo(int *semaphore_id, int semaphore_key)
+{
+    // Creating the semaphore
+    if ((*semaphore_id = semget(semaphore_key, 1, IPC_CREAT | SEM_PERMS)) == -1)
+    {
+        fprintf(stderr, "chamada a semget() falhou, impossivel criar o conjunto de semaforos!");
+        exit(1);
+    }
+    // Initializing it as unlocked
+    if (semop(*semaphore_id, semaphore_unlock_op, 1) == -1)
+    {
+        fprintf(stderr, "chamada semop() falhou, impossivel inicializar o semaforo!");
+        exit(1);
+    }
+}
+
+void lockSemaphore(int semaphore_id)
+{
+#ifdef PROTECT
+    if (semop(semaphore_id, semaphore_lock_op, 1) == -1)
+    {
+        fprintf(stderr, "chamada semop() falhou, impossivel fechar o recurso! Erro: %s", strerror(errno));
+        exit(1);
+    }
+    else
+    {
+        //fprintf(stdout, "\n<Locked semaphore with id: %d>\n", semaphore_id);
+        //fflush(stdout);
+    }
+#endif
+}
+void unlockSemaphore(int semaphore_id)
+{
+#ifdef PROTECT
+    if (semop(semaphore_id, semaphore_unlock_op, 1) == -1)
+    {
+        fprintf(stdout, "chamada semop() falhou, impossivel liberar o recurso!");
+        exit(1);
+    }
+    else
+    {
+        //fprintf(stdout, "\n<Unlocked semaphore with id: %d>\n", semaphore_id);
+        //fflush(stdout);
+    }
+#endif
+}
+
+void removeSemaphore(int semaphore_id)
+{
+    if (semctl(semaphore_id, 0, IPC_RMID, 0) != 0)
+    {
+        fprintf(stderr, "Impossivel remover o conjunto de semaforos! Error: %s\n semaphore id: %d", strerror(errno), semaphore_id);
+        exit(1);
+    }
+    else
+    {
+        fprintf(stdout, "\nConjunto de semaforos removido com sucesso!");
+    }
+}
+
+void setup_shared_memory() {
+
+	memset(&objStore, 0, sizeof(objStore));
+	memset(&shmid, 0, sizeof(shmid));
+	
+	if ((shmid = shmget(SHM_KEY, sizeof(ObjStore), 0644|IPC_CREAT)) == -1) {
+		perror("Shared memory error");
+		exit(0);
+	}
+
+	objStore = shmat(shmid, NULL, 0);
+	if (objStore == (void *) -1) {
+		perror("Shared memory attach error");
+		exit(0);
+	}
+
+	for(int i = 0; i < MaxArray; i++) {
+		Obj obj;
+		strcpy(obj.Name, "null");
+		strcpy(obj.Msg, "null");
+		objStore->store[i] = obj;
+	}
+	objStore->arrayObjCount = 0;
+
+
+	if (shmctl(shmid, IPC_RMID, 0) == -1) {
+		perror("shmctl");
+		exit(1);
+	}
+};
 
 void retorno_cliente(char retornoMsg[200]) {
     /* Envia uma mensagem ao cliente atraves do socket conectado */
@@ -48,68 +160,108 @@ void retorno_cliente(char retornoMsg[200]) {
 //opcao 1
 void opcao_1(Obj rcv){
    
-    if (arrayMsgCount < 10) {
-        printf("\nNome:%s\n", receiveMsg.Name);
-        printf("\nMensagem:%s\n", receiveMsg.Msg);
+	lockSemaphore(semaphore_id_A);
+    if (objStore->arrayObjCount < 10) {
+		int i = 0;
+		int saved = 0;
+		do{
+			if((strcmp("null", objStore->store[i].Name)) == 0) {
+				strcpy(objStore->store[i].Name, rcv.Name);
+				strcpy(objStore->store[i].Msg, rcv.Msg);
+				objStore->arrayObjCount++;
+				saved = 1;
+			}
+			i++;
 
-        objStore[arrayMsgCount] = rcv;
-        arrayMsgCount++;
+		}while(saved != 1 && i < MaxArray);
+		unlockSemaphore(semaphore_id_A);
 
-        retorno_cliente("Mensagem salva com sucesso!\n");
+        retorno_cliente("\nMensagem salva com sucesso!\n");
     } else {
         retorno_cliente("Nao foi possivel inserir uma nova mensagem\n");
     }
-
 }
 
 //opcao 2
 void opcao_2(){
-    if (send(ns, &arrayMsgCount, sizeof(arrayMsgCount), 0) < 0)
-    {
+	lockSemaphore(semaphore_id_A);
+	int arrayObjCount = 0;
+	// printf("sizeof(objStore->arrayObjCount) >>> %lu", sizeof(objStore->arrayObjCount));
+	// printf("opcao_2 - arrayObjCount >>> %i\n", arrayObjCount);
+	for(int i = 0; i < MaxArray; i++) {
+		printf("opcao 2 - objStore->store[%i].Name: %s\n", i , objStore->store[i].Name);
+		if((strcmp("null", objStore->store[i].Name)) != 0) {
+			arrayObjCount++;
+		}
+	}
+
+	printf("opcao 2 - arrayObjCount >>> %d\n", arrayObjCount);
+
+    if (send(ns, &arrayObjCount, sizeof(arrayObjCount), 0) < 0) {
         perror("Send()");
         exit(7);
     }
 
-    for(int i = 0; i < arrayMsgCount; i++) {
-        if (send(ns, &objStore[i], sizeof(objStore[i]), 0) < 0)
-        {
-            perror("Send()");
-            exit(7);
-        }
-    }
+	if ( arrayObjCount >= 1) {
+		for(int i = 0; i < MaxArray; i++) {
+			if (strcmp("null", objStore->store[i].Name) != 0) {
+				printf("\nopcao 2 - objStore->store[%i].Name 2: %s\n", i , objStore->store[i].Name);
+				if (send(ns, &objStore->store[i], sizeof(objStore->store[i]), 0) < 0)
+				{
+					perror("Send()");
+					exit(7);
+				}
+			}
+		}
+	}
+	unlockSemaphore(semaphore_id_A);
 }
 
 //opcao 3
 void opcao_3(Obj rcv){
-    int i;
-    printf("Numero de MSG: %d \n",arrayMsgCount);
+	int mensagensRemovidas = 0; // contadora para receber quantas mensagens foram apagadas
+	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
+	Obj obj;
 
-	for(i = 0; i < arrayMsgCount; i++) {
-        printf("%s \n",objStore[i].Name);
-        printf("%s \n", rcv.Name);
-   
-        printf("%d",strlen(objStore[i].Name));     
-        printf("%d",strlen(rcv.Name));     
+	lockSemaphore(semaphore_id_A);
+	for(int i = 0; i < MaxArray; i++) {
+		if((strcmp(rcv.Name,objStore->store[i].Name)) == 0) {
+			printf("objStore->store[%i].Name: %s\n", i, objStore->store[i].Name);
+			// printf("objStore->store[%i].Msg: %s\n", i, objStore->store[i].Msg);
+			strcpy(objAux[mensagensRemovidas].Name, objStore->store[i].Name);
+			strcpy(objAux[mensagensRemovidas].Msg, objStore->store[i].Msg);
 
-
-	if(strcmp(rcv.Name,objStore[i].Name) == 0) {
-
-        printf("Entrou no strcmp \n");
-
-			printf("\nMensagem Removida:%s\n",objStore[i].Msg);
-    		if (send(ns, objStore[i].Msg, strlen(objStore[i].Msg)+1, 0) < 0){
-    	    	perror("Send()");
-    		    exit(7);
-    		}
-            
-			/* Ajusta vetor: Desloca todos as mensagens uma posicao */ 
-			for(int j = i; j < arrayMsgCount-1; j++ ){
-                objStore[ j ] = objStore[ j + 1 ];
-			}
-			i--;
-			arrayMsgCount--;
+			strcpy(objStore->store[i].Name, "null");
+			strcpy(objStore->store[i].Msg, "null");
+			// printf("objStore->store[%i].Name 2: %s\n", i, objStore->store[i].Name);
+			// printf("objStore->store[%i].Msg 2: %s\n", i, objStore->store[i].Msg);
+			mensagensRemovidas++;
 		}
-    }
+	}
+	unlockSemaphore(semaphore_id_A);
+
+	// printf("Mensagens removidas: %i\n", mensagensRemovidas);
+	// for(int i = 0; i < MaxArray; i++) {
+	// 	printf("objStore->store[%i].Name: %s\n", i, objStore->store[i].Name);
+	// 	printf("objStore->store[%i].Msg: %s\n", i, objStore->store[i].Msg);
+	// }
+
+	// objStore->arrayObjCount = objStore->arrayObjCount - mensagensRemovidas; // pega o valor certo para a variavel
+	// printf("opcao_3 - objStore->arrayObjCount > %i\n", objStore->arrayObjCount);
+
+	// enviar a quantidade de mensagens apagadas
+	if (send(ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
+		perror("Send()");
+		exit(7);
+	}
+
+	// enviar quais foram as mensagens apagadas
+	for(int i = 0; i < mensagensRemovidas; i++) {
+		if (send(ns, &objAux, sizeof(objAux), 0) < 0) {
+			perror("Send()");
+			exit(7);
+		}
+	}
 }
 
 
@@ -117,26 +269,28 @@ void recebe_envia_mensagem(){
      bool variavelLoop = false;
     do {
         /* Recebe uma mensagem do cliente atraves do novo socket conectado */
-        if (recv(ns, &receiveMsg, sizeof(receiveMsg), 0) == -1)
+		memset(&receiveMsg, 0, sizeof(receiveMsg));
+		if (recv(ns, &receiveMsg, sizeof(receiveMsg), 0) == -1)
         {
             perror("Recv()");
             exit(6);
         }
+		// printf("receiveMsg.Opcao >>> %i\n", receiveMsg.Opcao);
 
         switch (receiveMsg.Opcao){
         case 1:
-        opcao_1(receiveMsg);
+        	opcao_1(receiveMsg);
             break;
         case 2:
-        opcao_2();
+        	opcao_2();
             break;
         case 3:
-        opcao_3(receiveMsg);
+        	opcao_3(receiveMsg);
             break;
-        case 4: 
+        case 4:
             variavelLoop = true;
         default:
-        retorno_cliente("Opcao invalida \n");
+        retorno_cliente("\nOpcao invalida");
         }
     } while(!variavelLoop);
 }
@@ -144,6 +298,12 @@ void recebe_envia_mensagem(){
 
 int main(int argc, char **argv)
 {
+	semaphore_lock_op[0].sem_num = 0;
+    semaphore_lock_op[0].sem_op = -1;
+    semaphore_lock_op[0].sem_flg = 0;
+    semaphore_unlock_op[0].sem_num = 0;
+    semaphore_unlock_op[0].sem_op = 1;
+    semaphore_unlock_op[0].sem_flg = 0;
 
     /*
      * O primeiro argumento (argv[1]) e a porta
@@ -151,7 +311,7 @@ int main(int argc, char **argv)
      */
     if (argc != 2)
     {
-	  fprintf(stderr, "Use: %s porta\n", argv[0]);
+	  fprintf(stderr, "\nUse: %s porta", argv[0]);
 	  exit(1);
     }
 
@@ -176,8 +336,8 @@ int main(int argc, char **argv)
     server.sin_addr.s_addr = INADDR_ANY;
 
 /* Imprime qual porta E IP foram utilizados. */
-    printf("\nPorta utilizada � %d\n", ntohs(server.sin_port));
-    printf("\nIP utilizado � %d\n", ntohs(server.sin_addr.s_addr));
+    printf("\nPorta utilizada: %d", ntohs(server.sin_port));
+    printf("\nIP utilizado: %d\n", ntohs(server.sin_addr.s_addr));
 
 	/*
      * Liga o servidor a porta definida anteriormente.
@@ -197,6 +357,10 @@ int main(int argc, char **argv)
 	  perror("Listen()");
 	  exit(4);
     }
+	
+	setup_semaforo(&semaphore_id_A, SEM_KEY_A);
+	setup_shared_memory(); // Faz o setup para fazer a memoria compartilhada
+   
 
     while(1)
     {
@@ -221,29 +385,6 @@ int main(int argc, char **argv)
 
 		/* Processo filho obtem seu proprio pid */
 		fid = getpid();
-
-		// /* Recebe uma mensagem do cliente atraves do novo socket conectado */
-		// if (recv(ns, recvbuf, sizeof(recvbuf), 0) == -1)
-		// {
-		//     perror("Recv()");
-		//     exit(6);
-		// }
-		
-		// printf("[%d] Recebida a mensagem do endereco IP %s da porta %d\n", fid, inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-		// printf("[%d] Mensagem recebida do cliente: %s\n", fid, recvbuf);
-		
-		// printf("[%d] Aguardando 10 s ...\n", fid);
-		// sleep(10);
-		
-		// strcpy(sendbuf, "Resposta");
-		
-		// /* Envia uma mensagem ao cliente atraves do socket conectado */
-		// if (send(ns, sendbuf, strlen(sendbuf)+1, 0) < 0)
-		// {
-		//     perror("Send()");
-		//     exit(7);
-		// }
-		// printf("[%d] Mensagem enviada ao cliente: %s\n", fid, sendbuf);
 	
 		recebe_envia_mensagem();
 
@@ -270,7 +411,7 @@ int main(int argc, char **argv)
 		else
 		{
 		    perror("Fork()");
-		    exit(7);	      
+		    exit(7);
 		}
 	  }
     }
