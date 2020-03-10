@@ -43,7 +43,7 @@
 		int arrayObjCount;	//Informar qual a proxima posicao para ser utilizada
 	} ObjStore;
 
-	int semaphore_id_A;
+	int semaphore_id;
     unsigned short port;
     char sendbuf[12];
     char recvbuf[12];
@@ -157,7 +157,7 @@ void retorno_cliente(char retornoMsg[200]) {
 
 //opcao 1
 void opcao_1(Obj rcv){
-	lockSemaphore(semaphore_id_A);
+	lockSemaphore(semaphore_id);
     if (objStore->arrayObjCount < 10) {
 		int i = 0;
 		int saved = 0;
@@ -171,7 +171,7 @@ void opcao_1(Obj rcv){
 			i++;
 
 		}while(saved != 1 && i < MaxArray);
-	unlockSemaphore(semaphore_id_A);
+	unlockSemaphore(semaphore_id);
 
         retorno_cliente("\nMensagem salva com sucesso!\n");
     } else {
@@ -181,7 +181,7 @@ void opcao_1(Obj rcv){
 
 //opcao 2
 void opcao_2(){
-	lockSemaphore(semaphore_id_A);
+	lockSemaphore(semaphore_id);
 	int objAuxCount = 0;
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 	for(int i = 0; i < MaxArray; i++) {
@@ -206,7 +206,7 @@ void opcao_2(){
 			}
 		}
 	}
-	unlockSemaphore(semaphore_id_A);
+	unlockSemaphore(semaphore_id);
 }
 
 //opcao 3
@@ -214,7 +214,7 @@ void opcao_3(Obj rcv){
 	int mensagensRemovidas = 0; // contadora para receber quantas mensagens foram apagadas
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 
-	lockSemaphore(semaphore_id_A);
+	lockSemaphore(semaphore_id);
 	for(int i = 0; i < MaxArray; i++) {
 		if((strcmp(rcv.Name,objStore->store[i].Name)) == 0) {
 			strcpy(objAux[mensagensRemovidas].Name, objStore->store[i].Name);
@@ -227,7 +227,7 @@ void opcao_3(Obj rcv){
 			mensagensRemovidas++;
 		}
 	}
-	unlockSemaphore(semaphore_id_A);
+	unlockSemaphore(semaphore_id);
 
 
 	// enviar a quantidade de mensagens apagadas
@@ -339,7 +339,7 @@ int main(int argc, char **argv)
 	  exit(4);
     }
 	
-	setup_semaforo(&semaphore_id_A, SEM_KEY_A);
+	setup_semaforo(&semaphore_id, SEM_KEY_A);
 	setup_shared_memory(); // Faz o setup para fazer a memoria compartilhada
    
 
