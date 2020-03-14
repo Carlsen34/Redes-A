@@ -15,14 +15,7 @@ Kaíque Ferreira Fávero 15118698
 #include <string.h>
 #include <stdbool.h>
 #include <sys/ipc.h>
-#include <sys/shm.h>
-#include <errno.h>
-#include <unistd.h>
-#include <semaphore.h>
-#include <sys/ipc.h> /* for msgget(), msgctl() */ //faltando sys
-#include <sys/msg.h> /* for msgget(), msgctl() */ //faltando sys
-#include <sys/shm.h>
-#include <sys/sem.h>
+#include <pthread.h>
 
 
 /*
@@ -32,12 +25,7 @@ Kaíque Ferreira Fávero 15118698
 #define MaxNAME 20
 #define MaxMsg 80
 #define MaxArray 10
-#define SHM_KEY 0x1024
-#define SEM_PERMS 0666
-#define SEM_KEY_A 9034
 
-	struct sembuf semaphore_lock_op[1];   // Struct containing a lock operation
-	struct sembuf semaphore_unlock_op[1]; // Struct containing an unlock operation
 
 	typedef struct Obj {
 		char Name[MaxNAME];
@@ -45,117 +33,32 @@ Kaíque Ferreira Fávero 15118698
 		int Opcao;	//Informar ao servidor qual procedimento foi realizado
 	} Obj;
 
-	typedef struct {
-		struct Obj store[MaxArray];
-		int arrayObjCount;	//Informar qual a proxima posicao para ser utilizada
-	} ObjStore;
+	struct args{
+		int ns;
+		struct sockaddr_in client; 
+	};
 
-	int semaphore_id;
-    unsigned short port;
-    char sendbuf[12];
-    char recvbuf[12];
-	ObjStore *objStore;
+	struct args parameters;
+	pthread_t thread_id[5];
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; /* A mutex protecting ObjStore. */
+	unsigned short port;
+	char sendbuf[12];
+	char recvbuf[12];
+	Obj objectStore[MaxArray];
 	Obj receiveMsg;
-	int shmid;
+	int arrayObjCount = 0;
+	int countClients = 0;
 	struct sockaddr_in client; 
-    struct sockaddr_in server; 
-    int s;                     /* Socket para aceitar conexoes       */
-    int ns;                    /* Socket conectado ao cliente        */
-    int namelen;
-    pid_t pid, fid;
-
-void setup_semaforo(int *semaphore_id, int semaphore_key)
-{
-    // Creating the semaphore
-    if ((*semaphore_id = semget(semaphore_key, 1, IPC_CREAT | SEM_PERMS)) == -1)
-    {
-        fprintf(stderr, "chamada a semget() falhou, impossivel criar o conjunto de semaforos!");
-        exit(1);
-    }
-    // Initializing it as unlocked
-    if (semop(*semaphore_id, semaphore_unlock_op, 1) == -1)
-    {
-        fprintf(stderr, "chamada semop() falhou, impossivel inicializar o semaforo!");
-        exit(1);
-    }
-}
-
-void lockSemaphore(int semaphore_id)
-{
-#ifdef PROTECT
-    if (semop(semaphore_id, semaphore_lock_op, 1) == -1)
-    {
-        fprintf(stderr, "chamada semop() falhou, impossivel fechar o recurso! Erro: %s", strerror(errno));
-        exit(1);
-    }
-    else
-    {
-        //fprintf(stdout, "\n<Locked semaphore with id: %d>\n", semaphore_id);
-        //fflush(stdout);
-    }
-#endif
-}
-void unlockSemaphore(int semaphore_id)
-{
-#ifdef PROTECT
-    if (semop(semaphore_id, semaphore_unlock_op, 1) == -1)
-    {
-        fprintf(stdout, "chamada semop() falhou, impossivel liberar o recurso!");
-        exit(1);
-    }
-    else
-    {
-        //fprintf(stdout, "\n<Unlocked semaphore with id: %d>\n", semaphore_id);
-        //fflush(stdout);
-    }
-#endif
-}
-
-void removeSemaphore(int semaphore_id)
-{
-    if (semctl(semaphore_id, 0, IPC_RMID, 0) != 0)
-    {
-        fprintf(stderr, "Impossivel remover o conjunto de semaforos! Error: %s\n semaphore id: %d", strerror(errno), semaphore_id);
-        exit(1);
-    }
-    else
-    {
-        fprintf(stdout, "\nConjunto de semaforos removido com sucesso!");
-    }
-}
-
-void setup_shared_memory() {
-
-	memset(&objStore, 0, sizeof(objStore));
-	memset(&shmid, 0, sizeof(shmid));
-	
-	if ((shmid = shmget(SHM_KEY, sizeof(ObjStore), 0644|IPC_CREAT)) == -1) {
-		perror("Shared memory error");
-		exit(0);
-	}
-
-	objStore = shmat(shmid, NULL, 0);
-	if (objStore == (void *) -1) {
-		perror("Shared memory attach error");
-		exit(0);
-	}
-
-	for(int i = 0; i < MaxArray; i++) {
-		strcpy(objStore->store[i].Name, "");
-		strcpy(objStore->store[i].Msg, "");
-	}
-	objStore->arrayObjCount = 0;
+	struct sockaddr_in server; 
+	int s;                     /* Socket para aceitar conexoes       */
+	int ns;                    /* Socket conectado ao cliente        */
+	int namelen;
+	pid_t pid, fid;
 
 
-	if (shmctl(shmid, IPC_RMID, 0) == -1) {
-		perror("shmctl");
-		exit(1);
-	}
-};
-
-void retorno_cliente(char retornoMsg[200]) {
+void retorno_cliente(struct args parameters, char retornoMsg[200]) {
     /* Envia uma mensagem ao cliente atraves do socket conectado */
-    if (send(ns, retornoMsg, strlen(retornoMsg)+1, 0) < 0)
+    if (send(parameters.ns, retornoMsg, strlen(retornoMsg)+1, 0) < 0)
     {
         perror("Send()");
         exit(7);
@@ -163,89 +66,89 @@ void retorno_cliente(char retornoMsg[200]) {
 }
 
 //opcao 1
-void opcao_1(Obj rcv){
-	lockSemaphore(semaphore_id);
-    if (objStore->arrayObjCount < 10) {
+void opcao_1(Obj rcv, struct args parameters){
+	printf("args: %d\n", parameters.ns);
+    if (arrayObjCount < 10) {
 		int i = 0;
 		int saved = 0;
+		pthread_mutex_lock(&mutex);
 		do{
-			if((strcmp("", objStore->store[i].Name)) == 0) {
-				strcpy(objStore->store[i].Name, rcv.Name);
-				strcpy(objStore->store[i].Msg, rcv.Msg);
-				objStore->arrayObjCount++;
+			if((strcmp("", objectStore[i].Name)) == 0) {
+				strcpy(objectStore[i].Name, rcv.Name);
+				strcpy(objectStore[i].Msg, rcv.Msg);
+				arrayObjCount++;
 				saved = 1;
 			}
 			i++;
 
 		}while(saved != 1 && i < MaxArray);
-	unlockSemaphore(semaphore_id);
+		pthread_mutex_unlock(&mutex);
 
-        retorno_cliente("\nMensagem salva com sucesso!\n");
+        retorno_cliente(parameters, "\nMensagem salva com sucesso!\n");
     } else {
-        retorno_cliente("Nao foi possivel inserir uma nova mensagem\n");
+        retorno_cliente(parameters ,"Nao foi possivel inserir uma nova mensagem\n");
     }
 }
 
 //opcao 2
-void opcao_2(){
-	lockSemaphore(semaphore_id);
+void opcao_2(struct args parameters){
 	int objAuxCount = 0;
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
+	pthread_mutex_lock(&mutex);
 	for(int i = 0; i < MaxArray; i++) {
-		if((strcmp("", objStore->store[i].Name)) != 0) {
-			strcpy(objAux[objAuxCount].Name, objStore->store[i].Name);
-			strcpy(objAux[objAuxCount].Msg, objStore->store[i].Msg);
+		if((strcmp("", objectStore[i].Name)) != 0) {
+			strcpy(objAux[objAuxCount].Name, objectStore[i].Name);
+			strcpy(objAux[objAuxCount].Msg, objectStore[i].Msg);
 			objAuxCount++;
 		}
 	}
+	pthread_mutex_unlock(&mutex);
 
-    if (send(ns, &objAuxCount, sizeof(objAuxCount), 0) < 0) {
+    if (send(parameters.ns, &objAuxCount, sizeof(objAuxCount), 0) < 0) {
         perror("Send()");
         exit(7);
     }
 
 	if ( objAuxCount >= 1) {
 		for(int i = 0; i < objAuxCount; i++) {
-			if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0)
+			if (send(parameters.ns, &objAux[i], sizeof(objAux[i]), 0) < 0)
 			{
 				perror("Send()");
 				exit(7);
 			}
 		}
 	}
-	unlockSemaphore(semaphore_id);
 }
 
 //opcao 3
-void opcao_3(Obj rcv){
+void opcao_3(Obj rcv, struct args parameters){
 	int mensagensRemovidas = 0; // contadora para receber quantas mensagens foram apagadas
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 
-	lockSemaphore(semaphore_id);
+	pthread_mutex_lock(&mutex);
 	for(int i = 0; i < MaxArray; i++) {
-		if((strcmp(rcv.Name,objStore->store[i].Name)) == 0) {
-			strcpy(objAux[mensagensRemovidas].Name, objStore->store[i].Name);
-			strcpy(objAux[mensagensRemovidas].Msg, objStore->store[i].Msg);
+		if((strcmp(rcv.Name,objectStore[i].Name)) == 0) {
+			strcpy(objAux[mensagensRemovidas].Name, objectStore[i].Name);
+			strcpy(objAux[mensagensRemovidas].Msg, objectStore[i].Msg);
 
-			strcpy(objStore->store[i].Name, "");
-			strcpy(objStore->store[i].Msg, "");
+			strcpy(objectStore[i].Name, "");
+			strcpy(objectStore[i].Msg, "");
 
-			objStore->arrayObjCount--;
+			arrayObjCount--;
 			mensagensRemovidas++;
 		}
 	}
-	unlockSemaphore(semaphore_id);
-
+	pthread_mutex_unlock(&mutex);
 
 	// enviar a quantidade de mensagens apagadas
-	if (send(ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
+	if (send(parameters.ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
 		perror("Send()");
 		exit(7);
 	}
 
 	// enviar quais foram as mensagens apagadas
 	for(int i = 0; i < mensagensRemovidas; i++) {
-		if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0) {
+		if (send(parameters.ns, &objAux[i], sizeof(objAux[i]), 0) < 0) {
 			perror("Send()");
 			exit(7);
 		}
@@ -253,8 +156,9 @@ void opcao_3(Obj rcv){
 }
 
 
-void recebe_envia_mensagem(){
-     bool variavelLoop = false;
+void *recebe_envia_mensagem(void* parameters){
+	struct args *args = (struct args*) parameters;
+    bool variavelLoop = false;
     do {
         /* Recebe uma mensagem do cliente atraves do novo socket conectado */
 		memset(&receiveMsg, 0, sizeof(receiveMsg));
@@ -267,32 +171,25 @@ void recebe_envia_mensagem(){
 
         switch (receiveMsg.Opcao){
         case 1:
-        	opcao_1(receiveMsg);
+        	opcao_1(receiveMsg, *args);
             break;
         case 2:
-        	opcao_2();
+        	opcao_2(*args);
             break;
         case 3:
-        	opcao_3(receiveMsg);
+        	opcao_3(receiveMsg, *args);
             break;
         case 4:
             variavelLoop = true;
         default:
-        retorno_cliente("\nOpcao invalida");
+        retorno_cliente(*args, "\nOpcao invalida");
         }
     } while(!variavelLoop);
+	return NULL;
 }
-
 
 int main(int argc, char **argv)
 {
-	semaphore_lock_op[0].sem_num = 0;
-    semaphore_lock_op[0].sem_op = -1;
-    semaphore_lock_op[0].sem_flg = 0;
-    semaphore_unlock_op[0].sem_num = 0;
-    semaphore_unlock_op[0].sem_op = 1;
-    semaphore_unlock_op[0].sem_flg = 0;
-
     /*
      * O primeiro argumento (argv[1]) e a porta
      * onde o servidor aguardara por conexoes
@@ -345,10 +242,6 @@ int main(int argc, char **argv)
 	  perror("Listen()");
 	  exit(4);
     }
-	
-	setup_semaforo(&semaphore_id, SEM_KEY_A);
-	setup_shared_memory(); // Faz o setup para fazer a memoria compartilhada
-   
 
     while(1)
     {
@@ -362,45 +255,16 @@ int main(int argc, char **argv)
 		perror("Accept()");
 		exit(5);
 	  }
-	  
-	  if ((pid = fork()) == 0) {
-		/*
-		 * Processo filho 
-		 */
-	      
-		/* Fecha o socket aguardando por conexoes */
-		close(s);
+	  	printf("ns => %d\n", ns);
+		parameters.ns = ns;
+		parameters.client = client;
 
-		/* Processo filho obtem seu proprio pid */
-		fid = getpid();
-	
-		recebe_envia_mensagem();
-
-		/* Fecha o socket conectado ao cliente */
-		close(ns);
-
-		/* Processo filho termina sua execucao */
-		printf("[%d] Processo filho terminado com sucesso.\n", fid);
-		exit(0);
-	  }
-	  else
-	  {  
-		/*
-		 * Processo pai 
-		 */
-		
-		if (pid > 0)
-		{
-		    printf("Processo filho criado: %d\n", pid);
-
-		    /* Fecha o socket conectado ao cliente */
-		    close(ns);
-		}
-		else
-		{
-		    perror("Fork()");
-		    exit(7);
-		}
-	  }
-    }
+		if (pthread_create(&thread_id[countClients], NULL, recebe_envia_mensagem, (void* )&parameters))
+        {
+            printf("ERRO: impossivel criar uma thread\n");
+            exit(-1);
+        }
+		countClients++;
+        pthread_detach(thread_id[countClients]);
+	}
 }
