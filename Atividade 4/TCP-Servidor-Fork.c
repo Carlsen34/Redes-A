@@ -35,11 +35,10 @@ Kaíque Ferreira Fávero 15118698
 
 	struct args{
 		int ns;
-		struct sockaddr_in client; 
 	};
 
 	struct args parameters;
-	pthread_t thread_id[5];
+	pthread_t thread_id[MaxArray];
 	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER; /* A mutex protecting ObjStore. */
 	unsigned short port;
 	char sendbuf[12];
@@ -48,17 +47,10 @@ Kaíque Ferreira Fávero 15118698
 	Obj receiveMsg;
 	int arrayObjCount = 0;
 	int countClients = 0;
-	struct sockaddr_in client; 
-	struct sockaddr_in server; 
-	int s;                     /* Socket para aceitar conexoes       */
-	int ns;                    /* Socket conectado ao cliente        */
-	int namelen;
-	pid_t pid, fid;
 
-
-void retorno_cliente(struct args parameters, char retornoMsg[200]) {
+void retorno_cliente(int ns, char retornoMsg[200]) {
     /* Envia uma mensagem ao cliente atraves do socket conectado */
-    if (send(parameters.ns, retornoMsg, strlen(retornoMsg)+1, 0) < 0)
+    if (send(ns, retornoMsg, strlen(retornoMsg)+1, 0) < 0)
     {
         perror("Send()");
         exit(7);
@@ -66,8 +58,7 @@ void retorno_cliente(struct args parameters, char retornoMsg[200]) {
 }
 
 //opcao 1
-void opcao_1(Obj rcv, struct args parameters){
-	printf("args: %d\n", parameters.ns);
+void opcao_1(Obj rcv, int ns){
     if (arrayObjCount < 10) {
 		int i = 0;
 		int saved = 0;
@@ -84,14 +75,15 @@ void opcao_1(Obj rcv, struct args parameters){
 		}while(saved != 1 && i < MaxArray);
 		pthread_mutex_unlock(&mutex);
 
-        retorno_cliente(parameters, "\nMensagem salva com sucesso!\n");
+        retorno_cliente(ns, "\nMensagem salva com sucesso!\n");
+
     } else {
-        retorno_cliente(parameters ,"Nao foi possivel inserir uma nova mensagem\n");
+        retorno_cliente(ns ,"Nao foi possivel inserir uma nova mensagem\n");
     }
 }
 
 //opcao 2
-void opcao_2(struct args parameters){
+void opcao_2(int ns){
 	int objAuxCount = 0;
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 	pthread_mutex_lock(&mutex);
@@ -104,14 +96,14 @@ void opcao_2(struct args parameters){
 	}
 	pthread_mutex_unlock(&mutex);
 
-    if (send(parameters.ns, &objAuxCount, sizeof(objAuxCount), 0) < 0) {
+    if (send(ns, &objAuxCount, sizeof(objAuxCount), 0) < 0) {
         perror("Send()");
         exit(7);
     }
 
 	if ( objAuxCount >= 1) {
 		for(int i = 0; i < objAuxCount; i++) {
-			if (send(parameters.ns, &objAux[i], sizeof(objAux[i]), 0) < 0)
+			if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0)
 			{
 				perror("Send()");
 				exit(7);
@@ -121,7 +113,10 @@ void opcao_2(struct args parameters){
 }
 
 //opcao 3
-void opcao_3(Obj rcv, struct args parameters){
+void opcao_3(Obj rcv, int ns){
+	printf("\nOpcao 3");
+	printf("\nOpcao 3 - parameters.ns: %i", parameters.ns);
+
 	int mensagensRemovidas = 0; // contadora para receber quantas mensagens foram apagadas
 	Obj objAux[MaxArray]; // array auxiliar para pegar quais mensagens foram apagadas
 
@@ -139,30 +134,33 @@ void opcao_3(Obj rcv, struct args parameters){
 		}
 	}
 	pthread_mutex_unlock(&mutex);
+	printf("\nOpcao 3 - FIM Mutex");
 
 	// enviar a quantidade de mensagens apagadas
-	if (send(parameters.ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
+	if (send(ns, &mensagensRemovidas, sizeof(mensagensRemovidas), 0) < 0) {
 		perror("Send()");
 		exit(7);
 	}
 
 	// enviar quais foram as mensagens apagadas
 	for(int i = 0; i < mensagensRemovidas; i++) {
-		if (send(parameters.ns, &objAux[i], sizeof(objAux[i]), 0) < 0) {
+		if (send(ns, &objAux[i], sizeof(objAux[i]), 0) < 0) {
 			perror("Send()");
 			exit(7);
 		}
 	}
+	printf("\nOpcao 3 - FIM Funcao");
+
 }
 
 
 void *recebe_envia_mensagem(void* parameters){
-	struct args *args = (struct args*) parameters;
+	struct args args = *((struct args*) parameters);
     bool variavelLoop = false;
     do {
         /* Recebe uma mensagem do cliente atraves do novo socket conectado */
 		memset(&receiveMsg, 0, sizeof(receiveMsg));
-		if (recv(ns, &receiveMsg, sizeof(receiveMsg), 0) == -1)
+		if (recv(args.ns, &receiveMsg, sizeof(receiveMsg), 0) == -1)
         {
             perror("Recv()");
             exit(6);
@@ -171,18 +169,18 @@ void *recebe_envia_mensagem(void* parameters){
 
         switch (receiveMsg.Opcao){
         case 1:
-        	opcao_1(receiveMsg, *args);
+        	opcao_1(receiveMsg, args.ns);
             break;
         case 2:
-        	opcao_2(*args);
+        	opcao_2(args.ns);
             break;
         case 3:
-        	opcao_3(receiveMsg, *args);
+        	opcao_3(receiveMsg, args.ns);
             break;
         case 4:
             variavelLoop = true;
         default:
-        retorno_cliente(*args, "\nOpcao invalida");
+        retorno_cliente(args.ns, "\nOpcao invalida");
         }
     } while(!variavelLoop);
 	return NULL;
@@ -190,6 +188,11 @@ void *recebe_envia_mensagem(void* parameters){
 
 int main(int argc, char **argv)
 {
+	int s;                     /* Socket para aceitar conexoes       */
+	int ns;                    /* Socket conectado ao cliente        */
+	struct sockaddr_in client; 
+	struct sockaddr_in server; 
+	int namelen;
     /*
      * O primeiro argumento (argv[1]) e a porta
      * onde o servidor aguardara por conexoes
@@ -255,15 +258,14 @@ int main(int argc, char **argv)
 		perror("Accept()");
 		exit(5);
 	  }
-	  	printf("ns => %d\n", ns);
 		parameters.ns = ns;
-		parameters.client = client;
 
 		if (pthread_create(&thread_id[countClients], NULL, recebe_envia_mensagem, (void* )&parameters))
         {
             printf("ERRO: impossivel criar uma thread\n");
             exit(-1);
         }
+		printf("Thread[%i] criada\n", countClients);
 		countClients++;
         pthread_detach(thread_id[countClients]);
 	}
