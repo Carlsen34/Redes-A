@@ -62,14 +62,14 @@ void adicionar_usuario_mensagens(){
     char msg[MaxMsg];
 
     printf("\nUsuario: \n");
-    fpurge(stdin);
+    __fpurge(stdin);
     //getchar();
     memset(name, 0, sizeof(name));
     fgets(name,sizeof(name),stdin);
     strtok(name,"\n");
 
     printf("\nMensagem: \n");
-    fpurge(stdin);
+    __fpurge(stdin);
     //getchar();
     memset(msg, 0, sizeof(msg));
     fgets(msg,sizeof(msg),stdin);
