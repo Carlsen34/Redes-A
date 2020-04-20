@@ -17,7 +17,6 @@ Kaíque Ferreira Fávero 15118698
 #include <sys/ipc.h>
 #include <pthread.h>
 
-
 /*
  * Servidor TCP
  */
