@@ -22,155 +22,23 @@ Kaíque Ferreira Fávero 15118698
  * Cliente TCP
  */
  
-#define MaxNAME 20
 #define COMMAND 200
-#define MaxMsg 80
-#define MaxArray 10
 
-typedef struct {
-char Name[MaxNAME];
-char Msg[MaxMsg];
-int Opcao; //Informar ao servidor qual procedimento foi realizado
-} Obj; 
-
-char sendbuf[12];
-char recvbuf[200];
 int s;
-Obj objStore;
+
 char command[COMMAND];
 
-// procedimento para enviar e receber mensagem do servidor
-void acessar_servidor(Obj obj){
-    /* Envia a mensagem no buffer de envio para o servidor */
-    if (send(s, &obj, (sizeof(obj)), 0) < 0)
+void encerrar(const char list_command[]) {
+    char comando_encerrar[200], nomeFile[256];
+    strcpy(comando_encerrar, list_command);
+    if (send(s, &comando_encerrar, (sizeof(comando_encerrar)), 0) < 0)
     {
         perror("Send()");
         exit(5);
     }
-    printf("\nMensagem enviada ao servidor");
-
-    /* Recebe a mensagem do servidor no buffer de recepcao */
-    if (recv(s, recvbuf, sizeof(recvbuf), 0) < 0)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-    printf("%s\n", recvbuf);
-};
-
-// Procedimento para opcao 1 -  Cadastrar mensagem
-void adicionar_usuario_mensagens(){
-    Obj obj;
-    obj.Opcao = 1;
-    char name[MaxNAME];
-    char msg[MaxMsg];
-
-    printf("\nUsuario: \n");
-    fpurge(stdin);
-    //getchar();
-    memset(name, 0, sizeof(name));
-    fgets(name,sizeof(name),stdin);
-    strtok(name,"\n");
-
-    printf("\nMensagem: \n");
-    fpurge(stdin);
-    //getchar();
-    memset(msg, 0, sizeof(msg));
-    fgets(msg,sizeof(msg),stdin);
-    strtok(name,"\n");
-
-
-    strcpy(obj.Name,name);
-	strcpy(obj.Msg,msg);
-
-	acessar_servidor(obj);
-	// adicionar usuario e mensagens a ser cadastradas
-};
-
-void printMessages(int sizeOfObjStore) {
-
-    for(int i = 0; i < sizeOfObjStore; i++) {
-        memset(&objStore, 0, sizeof(objStore));
-        if (recv(s, &objStore, sizeof(objStore), 0) < 0)
-        {
-            perror("Recv()");
-            exit(6);
-        }
-        printf("Usuario: %s ", objStore.Name);
-        printf("\tMensagem: %s", objStore.Msg);
-    }
-}
-
-// Procedimento para opcao 2 -  Ler mensagens 
-void encontrar_usuario_mensagens(){
-    Obj obj;
-    obj.Opcao = 2;
-    strcpy(obj.Name,"");
-    strcpy(obj.Msg,"");
-    int sizeOfObjStore = 0;
-
-    // envia um Obj somente com a opcao 2
-    if (send(s, &obj, (sizeof(obj)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    // Recebe o valor de quantas posicoes existem no array de objStore
-    if (recv(s, &sizeOfObjStore, sizeof(sizeOfObjStore), 0) < 0)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-
-    printf("\nMensagens cadastrada(s): %i\n", sizeOfObjStore);
-    // if (sizeOfObjStore >= 1) {
-        printMessages(sizeOfObjStore); // encontrar todos os usuarios e suas mensagens cadastradas
-    // }
-};
-
-// Procedimento para opcao 3 - Apagar mensagens 
-void apagar_usuario_mensagens(){
-    Obj obj;
-    obj.Opcao = 3;
-    char name[MaxNAME];
-    int sizeOfObjStore2 = 0;
-
-    printf("\nUsuario: \n");
-    scanf("%19s", name);
-    strcpy(obj.Name,name);
-
-    // envia um Obj somente com a opcao 2
-    if (send(s, &obj, (sizeof(obj)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    // Recebe o valor de quantas posicoes existem no array de objStore
-    if (recv(s, &sizeOfObjStore2, sizeof(sizeOfObjStore2), 0) < 0)
-    {
-        perror("Recv()");
-        exit(6);
-    }
-
-    printf("\nMensagens apagada(s): %i\n", sizeOfObjStore2);
-
-    printMessages(sizeOfObjStore2);  // encontrar usuario e apagar a mensagem ! *obs : retornar a mensagem removida
-};
-
-void encerrar() {
-    Obj obj;
-    obj.Opcao = 4;
-    strcpy(obj.Name,"");
-    strcpy(obj.Msg,"");
-    int sizeOfObjStore = 0;
-
-    if (send(s, &obj, (sizeof(obj)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
+    close(s);
+    printf("Finalizando o cliente ...\n");
+    exit(0);
 }
 
 void listar(const char list_command[]) {
@@ -204,8 +72,8 @@ void conectar(char hostname[], char porta[]) {
     struct hostent *hostnm;
     struct sockaddr_in server;
 
-    printf("hostname: %s", hostname);
-    printf("porta: %s", porta);
+    printf("hostname: %s\n", hostname);
+    printf("porta: %s\n", porta);
 
     /*
      * Obtendo o endereco IP do servidor
@@ -224,7 +92,6 @@ void conectar(char hostname[], char porta[]) {
     server.sin_family      = AF_INET;
     server.sin_port        = htons(port);
     server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
-
 
     /*
      * Cria um socket TCP (stream)
@@ -252,6 +119,7 @@ int main(int argc, char **argv)
     do {
         variavelLoop = false;
         printf("Insira um comando:\n");
+
         memset(command, 0, sizeof(command));
         fpurge(stdin);
         fgets(command,sizeof(command),stdin);
@@ -264,21 +132,24 @@ int main(int argc, char **argv)
 
         while( token != NULL ) {
             strcpy(value[i],token);
-            // printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
         }
 
-        if ((strcmp(value[0], "listar")) == 0) {
-            printf("Listar foi chamado");
-            listar(value[0]);
-        }
 
         if ((strcmp(value[0], "conectar")) == 0) {
             conectar(value[1], value[2]);
         }
 
 
+        if ((strcmp(value[0], "listar")) == 0) {
+            printf("Listar foi chamado\n");
+            listar(value[0]);
+        }
+
+        if ((strcmp(value[0], "encerrar")) == 0) {
+            encerrar(value[0]);
+        }
 
     } while(!variavelLoop);
 
