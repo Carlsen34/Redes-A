@@ -43,9 +43,119 @@ Kaíque Ferreira Fávero 15118698
 
 	char command[commandSizes];
 
+void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
+	int s_enviar;                     /* Socket para aceitar conexoes       */
+	int ns_enviar = 0;                /* Socket conectado ao cliente        */
+	struct sockaddr_in client_enviar; 
+	struct sockaddr_in server_enviar; 
+	int namelen_enviar;
+	char teste[200];
+	long int size_file;
+	FILE *fp;
+
+    /*
+     * O primeiro argumento (argv[1]) e a porta
+     * onde o servidor aguardara por conexoes
+     */
+
+    port = (unsigned short) 5001;
+
+    /*
+     * Cria um socket TCP (stream) para aguardar conexoes
+     */
+    if ((s_enviar = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    {
+	  perror("Socket()");
+	  exit(2);
+    }
+
+   /*
+    * Define a qual endereco IP e porta o servidor estara ligado.
+    * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
+    * os enderecos IP
+    */
+    server_enviar.sin_family = AF_INET;   
+    server_enviar.sin_port   = htons(port);       
+    server_enviar.sin_addr.s_addr = INADDR_ANY;
+
+/* Imprime qual porta E IP foram utilizados. */
+    printf("\nPorta utilizada (enviar): %d", ntohs(server_enviar.sin_port));
+    printf("\nIP utilizado (enviar): %d\n", ntohs(server_enviar.sin_addr.s_addr));
+
+	/*
+     * Liga o servidor a porta definida anteriormente.
+     */
+    if (bind(s_enviar, (struct sockaddr *)&server_enviar, sizeof(server_enviar)) < 0)
+    {
+	perror("Bind() aqui ... ");
+	exit(3);
+    }
+
+    /*
+     * Prepara o socket para aguardar por conexoes e
+     * cria uma fila de conexoes pendentes.
+     */
+    if (listen(s_enviar, 1) != 0)
+    {
+	  perror("Listen()");
+	  exit(4);
+    }
+
+	char validacao[200] = "ok"; 
+	if (send(ns, &validacao, (strlen(validacao)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+
+	 while(ns_enviar == 0)
+    {
+	  /*
+	  * Aceita uma conexao e cria um novo socket atraves do qual
+	  * ocorrera a comunicacao com o cliente.
+	  */
+	  namelen_enviar = sizeof(client_enviar);
+	  if ((ns_enviar = accept(s_enviar, (struct sockaddr *) &client_enviar, (socklen_t *) &namelen_enviar)) == -1)
+	  {
+		perror("Accept()");
+		exit(5);
+	  }
+
+	}
+
+	if (recv(ns_enviar, &size_file, sizeof(size_file), 0) == -1) {
+		perror("Recv()");
+		exit(6);
+	}
+
+	printf("size_file: %li\n ", size_file);
+
+	fp = fopen("teste2.txt", "w+");
+
+	if (recv(ns_enviar, &fp, size_file, 0) == -1) {
+		perror("Recv()");
+		exit(6);
+	}
+
+	fclose(fp);
+	close(ns_enviar);
+	printf("Fechou tudo!\n");
+	
+
+	// if (recv(ns_enviar, &teste, sizeof(teste), 0) == -1)
+	// {
+	// 	perror("Recv()");
+	// 	exit(6);
+	// }
+
+	// printf("Conexao porta 21 ... %s\n", teste);
+
+	
+}
+
+
 void encerrar(int ns, int s, int thread_id) {
 	close(ns);
-	// close(s);
 	printf("Thread[%d] has finished ...\n", thread_id);
 	pthread_exit(NULL);
 }
@@ -105,7 +215,7 @@ void *recebe_comando(void* parameters){
 
 		while( token != NULL ) {
             strcpy(value[i],token);
-			// printf("Token[%i] = %s\n", i, token);
+			printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
 		}
@@ -120,6 +230,11 @@ void *recebe_comando(void* parameters){
 
 		if ((strcmp(value[0], "encerrar")) == 0) {
             encerrar(args.ns, args.s, args.thread_id);
+        }
+
+		if ((strcmp(value[0], "enviar")) == 0) {
+            enviar(args.ns, args.s, value[1], value[2]);
+			printf("Voltou enviar ... \n");
         }
 
     } while(!variavelLoop);
