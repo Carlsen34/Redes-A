@@ -49,7 +49,7 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 	struct sockaddr_in client_enviar; 
 	struct sockaddr_in server_enviar; 
 	int namelen_enviar;
-	char teste[200];
+	char teste[100];
 	long int size_file;
 	FILE *fp;
 
@@ -132,11 +132,14 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 
 	fp = fopen("teste2.txt", "w+");
 
-	if (recv(ns_enviar, &fp, size_file, 0) == -1) {
+	if (recv(ns_enviar, &teste, sizeof(teste), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
 
+	printf("teste: %s\n",teste);
+	fwrite(teste, strlen(teste), 1, fp);
+	// fwrite(str , 1 , sizeof(str) , fp );
 	fclose(fp);
 	close(ns_enviar);
 	printf("Fechou tudo!\n");

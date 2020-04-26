@@ -80,7 +80,7 @@ int conectar_file(char hostname[], char porta[]) {
 void enviar(char comando[]) {
     FILE *fp;
     char comando_enviar[COMMAND];
-    size_t bufsize;
+    char bufsize[100];
 
     strcpy(comando_enviar, comando);
     if (send(s, &comando_enviar, (strlen(comando_enviar)), 0) < 0)
@@ -107,12 +107,15 @@ void enviar(char comando[]) {
         long int size_file = ftell(fp);
         printf("size_file = %li\n", size_file);
 
+        fseek(fp, 0, SEEK_SET);
+        fread(bufsize, 100, 1, fp); 
+        printf("bufsize (%i) : %s\n",strlen(bufsize), bufsize);
         if (send(s_file, &size_file, (sizeof(size_file)), 0) < 0) {
             perror("Send()");
             exit(5);
         }
 
-        if (send(s_file, &fp, (sizeof(fp)), 0) < 0) {
+        if (send(s_file, &bufsize, (sizeof(bufsize)), 0) < 0) {
             perror("Send()");
             exit(5);
         }
