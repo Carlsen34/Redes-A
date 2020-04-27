@@ -77,10 +77,11 @@ int conectar_file(char hostname[], char porta[]) {
     return s_file;
 }
 
-void enviar(char comando[]) {
+void enviar(char comando[], char nome_local[]) {
     FILE *fp;
     char comando_enviar[COMMAND];
     char bufsize[100];
+    char file_name[strlen(nome_local)+1];
 
     strcpy(comando_enviar, comando);
     if (send(s, &comando_enviar, (strlen(comando_enviar)), 0) < 0)
@@ -99,17 +100,19 @@ void enviar(char comando[]) {
     printf("Recebeu retorno do servidor, %s\n", comando_enviar);
     if(strcmp(comando_enviar,"ok") == 0) {
         int s_file;
-        s_file = conectar_file("localhost", "5001");
+        s_file = conectar_file("localhost", "21");
 
-        fp = fopen("teste.txt", "r+");
+        snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
+        // printf("file_name: %s\n", file_name);
+        fp = fopen(file_name, "r+");
 
         fseek(fp, 0L, SEEK_END);
         long int size_file = ftell(fp);
-        printf("size_file = %li\n", size_file);
+        // printf("size_file = %li\n", size_file);
 
         fseek(fp, 0, SEEK_SET);
-        fread(bufsize, 100, 1, fp); 
-        printf("bufsize (%i) : %s\n",strlen(bufsize), bufsize);
+        fread(bufsize, 200, 1, fp);
+        
         if (send(s_file, &size_file, (sizeof(size_file)), 0) < 0) {
             perror("Send()");
             exit(5);
@@ -225,7 +228,10 @@ int main(int argc, char **argv)
         memset(command, 0, sizeof(command));
         fpurge(stdin);
         fgets(command,sizeof(command),stdin);
-        strtok(command,"\n");
+        // strtok(command,"\n");
+
+        char comando[strlen(command)]; 
+        strcpy(comando, command);
 
         char *token = strtok(command, " ");
 
@@ -234,15 +240,16 @@ int main(int argc, char **argv)
 
         while( token != NULL ) {
             strcpy(value[i],token);
+            printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
         }
 
+        printf("command: %s\n", command);
 
         if ((strcmp(value[0], "conectar")) == 0) {
             conectar(value[1], value[2]);
         }
-
 
         if ((strcmp(value[0], "listar")) == 0) {
             printf("Listar foi chamado\n");
@@ -254,7 +261,7 @@ int main(int argc, char **argv)
         }
 
         if ((strcmp(value[0], "enviar")) == 0) {
-            enviar(command);
+            enviar(comando, value[1]);
         }
 
     } while(!variavelLoop);

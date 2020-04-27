@@ -49,8 +49,9 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 	struct sockaddr_in client_enviar; 
 	struct sockaddr_in server_enviar; 
 	int namelen_enviar;
-	char teste[100];
+	char teste[200];
 	long int size_file;
+	char file_name[strlen(nome_remoto)+1];
 	FILE *fp;
 
     /*
@@ -58,7 +59,7 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
      * onde o servidor aguardara por conexoes
      */
 
-    port = (unsigned short) 5001;
+    port = (unsigned short) 21;
 
     /*
      * Cria um socket TCP (stream) para aguardar conexoes
@@ -78,7 +79,7 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
     server_enviar.sin_port   = htons(port);       
     server_enviar.sin_addr.s_addr = INADDR_ANY;
 
-/* Imprime qual porta E IP foram utilizados. */
+	/* Imprime qual porta E IP foram utilizados. */
     printf("\nPorta utilizada (enviar): %d", ntohs(server_enviar.sin_port));
     printf("\nIP utilizado (enviar): %d\n", ntohs(server_enviar.sin_addr.s_addr));
 
@@ -87,8 +88,8 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
      */
     if (bind(s_enviar, (struct sockaddr *)&server_enviar, sizeof(server_enviar)) < 0)
     {
-	perror("Bind() aqui ... ");
-	exit(3);
+		perror("Bind() aqui ... ");
+		exit(3);
     }
 
     /*
@@ -130,30 +131,21 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 
 	printf("size_file: %li\n ", size_file);
 
-	fp = fopen("teste2.txt", "w+");
+	snprintf(file_name, strlen(nome_remoto)+1, "%s", nome_remoto); 
+	// printf("file_name: %s\n", file_name);
+	fp = fopen(file_name, "w+");
 
 	if (recv(ns_enviar, &teste, sizeof(teste), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
 
-	printf("teste: %s\n",teste);
 	fwrite(teste, strlen(teste), 1, fp);
-	// fwrite(str , 1 , sizeof(str) , fp );
+
 	fclose(fp);
+	close(s_enviar);
 	close(ns_enviar);
 	printf("Fechou tudo!\n");
-	
-
-	// if (recv(ns_enviar, &teste, sizeof(teste), 0) == -1)
-	// {
-	// 	perror("Recv()");
-	// 	exit(6);
-	// }
-
-	// printf("Conexao porta 21 ... %s\n", teste);
-
-	
 }
 
 
@@ -216,9 +208,10 @@ void *recebe_comando(void* parameters){
 		char value[3][200] ;
 		int i = 0;
 
+
 		while( token != NULL ) {
             strcpy(value[i],token);
-			printf("Token[%i] = %s\n", i, token);
+			// printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
 		}
