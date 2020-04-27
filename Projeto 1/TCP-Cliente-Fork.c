@@ -158,7 +158,7 @@ void listar(const char list_command[]) {
     }
 
     // Recebe a lista de arquivos que estao no servidor...
-    do{
+    while((strcmp(nomeFile, "stop")) != 0) {
         if (recv(s, &nomeFile, (sizeof(nomeFile)), 0) < 0)
         {
             perror("Recv()");
@@ -166,7 +166,7 @@ void listar(const char list_command[]) {
         }
 
         printf("> %s\n", nomeFile);
-    }while((strcmp(nomeFile, "stop")) != 0);
+    };
 }
 
 
@@ -228,7 +228,6 @@ int main(int argc, char **argv)
         memset(command, 0, sizeof(command));
         fpurge(stdin);
         fgets(command,sizeof(command),stdin);
-        // strtok(command,"\n");
 
         char comando[strlen(command)]; 
         strcpy(comando, command);
@@ -245,7 +244,8 @@ int main(int argc, char **argv)
             i++;
         }
 
-        printf("command: %s\n", command);
+        printf("command: %s\n", value[0]);
+        strtok(value[0],"\n");
 
         if ((strcmp(value[0], "conectar")) == 0) {
             conectar(value[1], value[2]);
