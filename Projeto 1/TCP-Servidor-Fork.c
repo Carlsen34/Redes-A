@@ -162,6 +162,7 @@ void listar(int ns) {
 	char stop[] = "stop";
 	char copy[256];
 
+	// printf("Listar todos os arquivos ... 2\n");
 	if (getcwd(cwd, sizeof(cwd)) != NULL) {
 		printf("Current working dir: %s\n", cwd);
 	}
@@ -211,12 +212,13 @@ void *recebe_comando(void* parameters){
 
 		while( token != NULL ) {
             strcpy(value[i],token);
-			// printf("Token[%i] = %s\n", i, token);
+			printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
 		}
 
         if ((strcmp(value[0], "listar")) == 0) {
+			//printf("Listar todos os arquivos ...\n");
             listar(args.ns);
         }
 
