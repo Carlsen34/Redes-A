@@ -114,12 +114,23 @@ void *recebe_comando(void* parameters){
             listar(args.ns);
         }
 
+		if ((strcmp(value[0], "baixar")) == 0) {
+            baixar();
+        }
+
 		if ((strcmp(value[0], "encerrar")) == 0) {
             encerrar(args.ns, args.s, args.thread_id);
         }
 
     } while(!variavelLoop);
 	return NULL;
+}
+
+void baixar(){
+	//receber caminho do arquivo
+	//verificar se arquivo existe
+	//enviar 1 pacote contento nome e quantidade de pacotes a serem enviados
+	//enviar os pacotes
 }
 
 int main(int argc, char **argv)
@@ -168,8 +179,8 @@ int main(int argc, char **argv)
      */
     if (bind(s, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
-	perror("Bind()");
-	exit(3);
+		perror("Bind()");
+		exit(3);
     }
 
     /*

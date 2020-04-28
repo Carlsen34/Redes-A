@@ -110,6 +110,74 @@ void conectar(char hostname[], char porta[]) {
     }
 }
 
+int baixar(const char list_command[]){
+    char localizacao[200], pacote[256],
+     nomeDoArquivo[200];
+    int qntd = 0;
+	ssize_t len;
+
+    printf("Digite o caminho e nome do arquivo\n");
+    memset(localizacao, 0, sizeof(localizacao));
+    fpurge(stdin);
+    fgets(localizacao,sizeof(localizacao),stdin);
+    strtok(localizacao,"\n");
+
+    //enviar comando
+    if (send(s, &list_command, (strlen(list_command)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+
+    //enviar caminho do arquivo
+    if (send(s, &localizacao, (strlen(localizacao)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+
+    //receber arquivo 
+    //primeiro recebo validacao, nome e tamanho
+    if (recv(s, &pacote, (sizeof(pacote)), 0) < 0)
+    {
+		fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
+        perror("Recv()");
+        exit(6);
+    }
+
+    strtok(pacote,"\n");
+    char *token = strtok(pacote, " ");
+    if (strcmp(token, "200") == 0)
+    {
+        fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
+        return(1);
+    }
+    
+    token = strtok(NULL, " ");
+    strcpy(nomeDoArquivo, token);
+	printf("Arquivo %s\n", nomeDoArquivo);
+
+    token = strtok(NULL, " ");
+    qntd = atoi(token);
+
+    //segundo recebo os pacotes que formam o arquivo
+	FILE *received_file;
+    received_file = fopen(nomeDoArquivo, "w");
+
+    for (int i = 0; i < qntd; i++)
+    {
+        if (len = recv(s, &pacote, (sizeof(pacote)), 0) < 0)
+        {
+            fprintf(stderr, "Erro ao baixar arquivo\n");
+            perror("Recv()");
+            return(1);
+        }
+		fwrite(&pacote,sizeof(char),len, received_file);
+    }
+
+	fclose(received_file);
+    return(0);
+}
 
 // MAIN FUNCTION
 int main(int argc, char **argv)
@@ -145,6 +213,10 @@ int main(int argc, char **argv)
         if ((strcmp(value[0], "listar")) == 0) {
             printf("Listar foi chamado\n");
             listar(value[0]);
+        }
+
+	    if ((strcmp(value[0], "baixar")) == 0) {
+            baixar(value[0]);
         }
 
         if ((strcmp(value[0], "encerrar")) == 0) {
