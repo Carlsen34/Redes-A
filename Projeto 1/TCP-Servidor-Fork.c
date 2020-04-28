@@ -28,6 +28,7 @@ Kaíque Ferreira Fávero 15118698
 
 #define commandSizes 200
 #define MaxArray 10
+#define FILESIZE 4096
 
 	struct args{
 		int ns;
@@ -43,15 +44,28 @@ Kaíque Ferreira Fávero 15118698
 
 	char command[commandSizes];
 
+long file_size(char *name) {
+    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
+
+    long size=-1;
+    if(fp)
+    {
+        fseek (fp, 0, SEEK_END);
+        size = ftell(fp)+1;
+        fclose(fp);
+    }
+    return size;
+}
+
 void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 	int s_enviar;                     /* Socket para aceitar conexoes       */
 	int ns_enviar = 0;                /* Socket conectado ao cliente        */
 	struct sockaddr_in client_enviar; 
 	struct sockaddr_in server_enviar; 
 	int namelen_enviar;
-	char teste[200];
-	long int size_file;
-	char file_name[strlen(nome_remoto)+1];
+	char line[FILESIZE];
+	long size_file;
+	char file_name[strlen(nome_remoto)];
 	FILE *fp;
 
     /*
@@ -121,7 +135,6 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 		perror("Accept()");
 		exit(5);
 	  }
-
 	}
 
 	if (recv(ns_enviar, &size_file, sizeof(size_file), 0) == -1) {
@@ -130,17 +143,24 @@ void enviar(int ns, int s, char nome_local[], char nome_remoto[]) {
 	}
 
 	printf("size_file: %li\n ", size_file);
+		
+	snprintf(file_name, strlen(nome_remoto), "%s", nome_remoto);
+	printf("size_file: %li\nfile_name: %i\n", size_file, sizeof(file_name)); 
+	fp = fopen(file_name, "wb");
 
-	snprintf(file_name, strlen(nome_remoto)+1, "%s", nome_remoto); 
-	// printf("file_name: %s\n", file_name);
-	fp = fopen(file_name, "w+");
+	if(fp) {
+		int accum = 0;
+		int sent_bytes = 0;
+		while(accum < size_file) {
+			if ((sent_bytes = recv(ns_enviar, &line, (sizeof(line)), 0)) < 0) {
+				perror("Send()");
+				exit(5);
+			}
+			accum += sent_bytes;//track size of growing file
 
-	if (recv(ns_enviar, &teste, sizeof(teste), 0) == -1) {
-		perror("Recv()");
-		exit(6);
+			fwrite(line, sent_bytes, 1, fp);
+		}
 	}
-
-	fwrite(teste, strlen(teste), 1, fp);
 
 	fclose(fp);
 	close(s_enviar);
@@ -235,8 +255,7 @@ void *recebe_comando(void* parameters){
 	return NULL;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
 	int s;                     /* Socket para aceitar conexoes       */
 	int ns;                    /* Socket conectado ao cliente        */
 	struct sockaddr_in client; 
