@@ -25,6 +25,9 @@ Kaíque Ferreira Fávero 15118698
  */
  
 #define COMMAND 200
+#define SEGMENT 5000 //approximate target size of small file
+#define FILESIZE 4096
+
 
 int s;
 
@@ -77,11 +80,27 @@ int conectar_file(char hostname[], char porta[]) {
     return s_file;
 }
 
+long file_size(char *name) {
+    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
+
+    long size;
+    if(fp) {
+        fseek(fp, 0, SEEK_END);
+        size = ftell(fp);
+        fclose(fp);
+    }
+    return size;
+}
+
 void enviar(char comando[], char nome_local[]) {
     FILE *fp;
     char comando_enviar[COMMAND];
     char bufsize[100];
     char file_name[strlen(nome_local)+1];
+    int segments = 0, i , len, accum;
+    long sizeFile = file_size(nome_local);
+    segments = sizeFile/SEGMENT + 1;//ensure end of file
+    char line[FILESIZE];
 
     strcpy(comando_enviar, comando);
     if (send(s, &comando_enviar, (strlen(comando_enviar)), 0) < 0)
@@ -103,32 +122,34 @@ void enviar(char comando[], char nome_local[]) {
         s_file = conectar_file("localhost", "21");
 
         snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
-        // printf("file_name: %s\n", file_name);
-        fp = fopen(file_name, "r+");
+        fp = fopen(file_name, "rb");
 
-        fseek(fp, 0L, SEEK_END);
-        long int size_file = ftell(fp);
-        // printf("size_file = %li\n", size_file);
-
-        fseek(fp, 0, SEEK_SET);
-        fread(bufsize, 200, 1, fp);
-        
-        if (send(s_file, &size_file, (sizeof(size_file)), 0) < 0) {
+        if (send(s_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
             perror("Send()");
             exit(5);
         }
 
-        if (send(s_file, &bufsize, (sizeof(bufsize)), 0) < 0) {
-            perror("Send()");
-            exit(5);
+        printf("segments: %li\n", sizeFile);
+        if(fp) {
+            int sent_bytes = 0;
+            while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0))
+            {
+                printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
+                sizeFile -= sent_bytes;
+
+                if (send(s_file, &line, sent_bytes, 0) < 0) {
+                    perror("Send()");
+                    exit(5);
+                }
+                memset(line, 0, sizeof(line));
+            }
+            printf("Finalizou o processo de envio ... \n");
         }
 
         fclose(fp);
         close(s_file);
         printf("Fechou tudo!\n");
-
     }
-
 }
 
 void encerrar(const char list_command[]) {
@@ -168,8 +189,6 @@ void listar(const char list_command[]) {
         printf("> %s\n", nomeFile);
     };
 }
-
-
 
 
 void conectar(char hostname[], char porta[]) {
@@ -284,8 +303,7 @@ int baixar(char list_command[]){
 }
 
 // MAIN FUNCTION
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
     bool variavelLoop = true;
 
     do {
