@@ -95,11 +95,11 @@ int conectar_file(char hostname[], char porta[]) {
 long file_size(char *name) {
     FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
 
-    long size=-1;
+    long size= 0 ;
     if(fp)
     {
         fseek (fp, 0, SEEK_END);
-        size = ftell(fp)+1;
+        size = ftell(fp);
         fclose(fp);
     }
     return size;
@@ -117,40 +117,80 @@ void enviar(int ns, int s) {
 		exit(6);
 	}
 
-	printf("buf: %s\n", buf);
+	//conecta com o cliente na porta 21
 	int s_file;
 	s_file = conectar_file("localhost", "21");
 
+	//recebe o tamanho do arquivo a ser recebido
 	if (recv(s_file, &size_file, sizeof(size_file), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
 
-	// if (recv(s_file, &line, sizeof(line), 0) == -1) {
-	// 	perror("Recv()");
-	// 	exit(6);
-	// }
-	// printf("line: %s\n", line);
-
-
-	snprintf(file_name, strlen(buf), "%s", buf);
-	printf("file_name: %s\n", file_name);
-	fp = fopen(file_name, "wb");
+	snprintf(file_name, strlen(buf), "%s", buf);// pega o nome do arquivo de um uma variavel
+	fp = fopen(file_name, "wb");// abre o arquivo
 
 	if(fp) {
-		int accum = 0;
-		int sent_bytes = 0;
+		int accum = 0; // quantidade de dados acumuladods
+		int sent_bytes = 0; // quantidade de dados recebidos
 		while(accum < size_file) {
 			if ((sent_bytes = recv(s_file, &line, (sizeof(line)), 0)) < 0) {
 				perror("Send()");
 				exit(5);
 			}
-			//printf("sizeFile: %s - %i\n", line, sent_bytes);
 			accum += sent_bytes;//track size of growing file
 
 			fwrite(line, sent_bytes, 1, fp);
 		}
 	}
+
+	fclose(fp);
+	close(s_file);
+	printf("Fechou tudo!\n");
+}
+
+void receber(int ns, int s) {
+	FILE *fp;
+	char buf[200], file_name[200];
+	char line[FILESIZE];
+	long size_file = 0;
+
+
+	// recebe o nome do arquivo que sera enviado ao cliente
+	if (recv(ns, &buf, sizeof(buf), 0) == -1) {
+		perror("Recv()");
+		exit(6);
+	}
+	//conecta com o cliente na porta 21
+	int s_file;
+	s_file = conectar_file("localhost", "21");
+
+	//envia o tamanho do arquivo a ser enviado 
+	size_file = file_size(buf);
+	printf("size_file: %li\n", size_file);
+	if (send(s_file, &size_file, sizeof(size_file), 0) == -1) {
+		perror("Recv()");
+		exit(6);
+	}
+
+	snprintf(file_name, strlen(buf)+1, "%s", buf);// pega o nome do arquivo de um uma variavel
+	fp = fopen(file_name, "rb");// abre o arquivo
+	printf("file_name: %s\n", file_name);
+
+	if(fp) {
+        int sent_bytes = 0;
+        while((sent_bytes = fread(line, 1, (sizeof(line)), fp)) && (size_file > 0)) {
+            printf("sizeFile: %s - %i\n", line, sent_bytes);
+            size_file -= sent_bytes;
+
+            if (send(s_file, &line, sent_bytes, 0) < 0) {
+                perror("Send()");
+                exit(5);
+            }
+            memset(line, 0, sizeof(line));
+        }
+        printf("Finalizou o processo de envio ... \n");
+    }
 
 	fclose(fp);
 	close(s_file);
@@ -225,7 +265,6 @@ void *recebe_comando(void* parameters){
 		}
 
         if ((strcmp(value[0], "listar")) == 0) {
-			//printf("Listar todos os arquivos ...\n");
             listar(args.ns);
         }
 
@@ -235,7 +274,11 @@ void *recebe_comando(void* parameters){
 
 		if ((strcmp(value[0], "enviar")) == 0) {
             enviar(args.ns, args.s);
-			printf("Voltou enviar ... \n");
+        }
+
+		if ((strcmp(value[0], "receber")) == 0) {
+            receber(args.ns, args.s);
+			printf("Voltou receber ... \n");
         }
 
     } while(!variavelLoop);
