@@ -28,57 +28,9 @@ Kaíque Ferreira Fávero 15118698
 #define SEGMENT 5000 //approximate target size of small file
 #define FILESIZE 4096
 
-
 int s;
 
 char command[COMMAND];
-
-int conectar_file(char hostname[], char porta[]) {
-    int s_file;
-    unsigned short port;
-    struct hostent *hostnm;
-    struct sockaddr_in server;
-    char teste[200];
-
-    printf("hostname: %s\n", hostname);
-    printf("porta: %s\n", porta);
-
-    /*
-     * Obtendo o endereco IP do servidor
-     */
-    hostnm = gethostbyname(hostname);
-    if (hostnm == (struct hostent *) 0)
-    {
-        fprintf(stderr, "Gethostbyname failed\n");
-        exit(2);
-    }
-    port = (unsigned short) atoi(porta);
-
-    /*
-     * Define o endereco IP e a porta do servidor
-     */
-    server.sin_family      = AF_INET;
-    server.sin_port        = htons(port);
-    server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
-
-    /*
-     * Cria um socket TCP (stream)
-     */
-    if ((s_file = socket(PF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        perror("Socket()");
-        exit(3);
-    }
-
-    /* Estabelece conexao com o servidor */
-    if (connect(s_file, (struct sockaddr *)&server, sizeof(server)) < 0)
-    {
-        perror("Connect()");
-        exit(4);
-    }
-
-    return s_file;
-}
 
 long file_size(char *name) {
     FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
@@ -92,64 +44,143 @@ long file_size(char *name) {
     return size;
 }
 
-void enviar(char comando[], char nome_local[]) {
+void create_socket(int *s_enviar, int *ns_enviar) {
+    // int *s_enviar;                     /* Socket para aceitar conexoes       */
+	// int *ns_enviar = 0;                /* Socket conectado ao cliente        */
+    unsigned short port;
+	struct sockaddr_in client_enviar; 
+	struct sockaddr_in server_enviar; 
+	int namelen_enviar;
+	FILE *fp;
+
+    /*
+     * O primeiro argumento (argv[1]) e a porta
+     * onde o servidor aguardara por conexoes
+     */
+
+    port = (unsigned short) 21;
+
+    /*
+     * Cria um socket TCP (stream) para aguardar conexoes
+     */
+    if ((*s_enviar = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    {
+	  perror("Socket()");
+	  exit(2);
+    }
+
+   /*
+    * Define a qual endereco IP e porta o servidor estara ligado.
+    * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
+    * os enderecos IP
+    */
+    server_enviar.sin_family = AF_INET;   
+    server_enviar.sin_port   = htons(port);       
+    server_enviar.sin_addr.s_addr = INADDR_ANY;
+
+	/* Imprime qual porta E IP foram utilizados. */
+    printf("\nPorta utilizada (enviar): %d", ntohs(server_enviar.sin_port));
+    printf("\nIP utilizado (enviar): %d\n", ntohs(server_enviar.sin_addr.s_addr));
+
+	/*
+     * Liga o servidor a porta definida anteriormente.
+     */
+    if (bind(*s_enviar, (struct sockaddr *)&server_enviar, sizeof(server_enviar)) < 0)
+    {
+		perror("Bind() aqui ... ");
+		exit(3);
+    }
+
+    /*
+     * Prepara o socket para aguardar por conexoes e
+     * cria uma fila de conexoes pendentes.
+     */
+    if (listen(*s_enviar, 1) != 0)
+    {
+	  perror("Listen()");
+	  exit(4);
+    }
+
+
+     while(*ns_enviar == 0)
+    {
+	  /*
+	  * Aceita uma conexao e cria um novo socket atraves do qual
+	  * ocorrera a comunicacao com o cliente.
+	  */
+      printf("\n>>> while(1) - %i\n", *ns_enviar == 0);
+	  namelen_enviar = sizeof(client_enviar);
+	  if ((*ns_enviar = accept(*s_enviar, (struct sockaddr *) &client_enviar, (socklen_t *) &namelen_enviar)) == -1) {
+		perror("Accept()");
+		exit(5);
+	  }
+	}
+}
+
+void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     FILE *fp;
-    char comando_enviar[COMMAND];
+    char str_aux[COMMAND];
     char bufsize[100];
     char file_name[strlen(nome_local)+1];
-    int segments = 0, i , len, accum;
+    int i, len, accum;
     long sizeFile = file_size(nome_local);
-    segments = sizeFile/SEGMENT + 1;//ensure end of file
     char line[FILESIZE];
+    int s_file = 0, ns_file = 0;
 
-    strcpy(comando_enviar, comando);
-    if (send(s, &comando_enviar, (strlen(comando_enviar)), 0) < 0)
-    {
-        perror("Send()");
+    strcpy(str_aux, comando);
+    // enviar o comando enviar ...
+    if (send(s, &str_aux, (sizeof(str_aux)), 0) < 0) {
+        perror("Send() 1");
         exit(5);
     }
 
-    memset(comando_enviar, 0, sizeof(comando_enviar));
-    if (recv(s, &comando_enviar, sizeof(comando_enviar), 0) == -1)
-    {
-        perror("Recv()");
-        exit(6);
+    // envia o nome que o arquivo sera salvo
+    strcpy(str_aux, nome_remoto);
+    if (send(s, &str_aux, (sizeof(str_aux)), 0) < 0) {
+        perror("Send() 2");
+        exit(5);
     }
 
-    printf("Recebeu retorno do servidor, %s\n", comando_enviar);
-    if(strcmp(comando_enviar,"ok") == 0) {
-        int s_file;
-        s_file = conectar_file("localhost", "21");
+    //cria socket e espera a conexao
+    create_socket(&s_file, &ns_file);
+    printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
 
-        snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
-        fp = fopen(file_name, "rb");
+    // le o nome do arquivo
+    snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
+    fp = fopen(file_name, "rb");
+    printf("file_name: %s\n", file_name);
 
-        if (send(s_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
-            perror("Send()");
-            exit(5);
-        }
+    // enviar qual o tamanho do arquivo
+    if (send(ns_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
+        perror("Send() 3");
+        exit(5);
+    }
 
-        printf("segments: %li\n", sizeFile);
-        if(fp) {
-            int sent_bytes = 0;
-            while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0))
-            {
-                printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
-                sizeFile -= sent_bytes;
+    // strcpy(str_aux, "PUDIM");
+    // if (send(ns_file, &str_aux, (sizeof(str_aux)), 0) < 0) {
+    //     perror("Send() 3");
+    //     exit(5);
+    // }
 
-                if (send(s_file, &line, sent_bytes, 0) < 0) {
-                    perror("Send()");
-                    exit(5);
-                }
-                memset(line, 0, sizeof(line));
+    if(fp) {
+        int sent_bytes = 0;
+        while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
+            printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
+            sizeFile -= sent_bytes;
+
+            if (send(ns_file, &line, sent_bytes, 0) < 0) {
+                perror("Send()");
+                exit(5);
             }
-            printf("Finalizou o processo de envio ... \n");
+            memset(line, 0, sizeof(line));
         }
-
-        fclose(fp);
-        close(s_file);
-        printf("Fechou tudo!\n");
+        printf("Finalizou o processo de envio ... \n");
     }
+
+    fclose(fp);
+    close(s_file);
+    close(ns_file);
+    printf("Fechou tudo!\n");
 }
 
 void encerrar(const char list_command[]) {
@@ -189,7 +220,6 @@ void listar(const char list_command[]) {
         printf("> %s\n", nomeFile);
     };
 }
-
 
 void conectar(char hostname[], char porta[]) {
     unsigned short port;
@@ -278,7 +308,7 @@ int main(int argc, char **argv){
         }
 
         if ((strcmp(value[0], "enviar")) == 0) {
-            enviar(comando, value[1]);
+            enviar(value[0], value[1], value[2]);
         }
 
     } while(!variavelLoop);
