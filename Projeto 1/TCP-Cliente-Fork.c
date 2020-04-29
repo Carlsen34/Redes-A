@@ -156,12 +156,6 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
         exit(5);
     }
 
-    // strcpy(str_aux, "PUDIM");
-    // if (send(ns_file, &str_aux, (sizeof(str_aux)), 0) < 0) {
-    //     perror("Send() 3");
-    //     exit(5);
-    // }
-
     if(fp) {
         int sent_bytes = 0;
         while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
@@ -182,6 +176,76 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     close(ns_file);
     printf("Fechou tudo!\n");
 }
+
+void receber(char comando[], char nome_remoto[], char nome_local[]) {
+    FILE *fp;
+    char str_aux[COMMAND];
+    char bufsize[100];
+    char file_name[200];
+    int i, len, accum;
+    long sizeFile = 0;
+    char line[FILESIZE];
+    int s_file = 0, ns_file = 0;
+
+    strcpy(str_aux, comando);
+    // enviar o comando receber ...
+    if (send(s, &str_aux, (sizeof(str_aux)), 0) < 0) {
+        perror("Send() 1");
+        exit(5);
+    }
+
+    // envia o nome que o arquivo sera salvo
+    strcpy(str_aux, nome_remoto);
+    printf("str_aux: %s\n", str_aux);
+    if (send(s, &str_aux, (sizeof(str_aux)), 0) < 0) {
+        perror("Send() 2");
+        exit(5);
+    }
+
+    //cria socket e espera a conexao
+    create_socket(&s_file, &ns_file);
+    printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
+    
+    // recebe qual o tamanho do arquivo
+    if (recv(ns_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
+        perror("Send() 3");
+        exit(5);
+    }
+    printf("sizeFile: %li\n", sizeFile);
+
+    // le o nome do arquivo
+    printf("nome_local: %s\n", nome_local);
+    snprintf(file_name, strlen(nome_local), "%s", nome_local);
+    printf("file_name: %s\n", file_name);
+    printf("(sizeof(line)): %lu\n", (sizeof(line)));
+    fp = fopen(file_name, "wb");
+
+    if(fp) {
+		accum = 0; // quantidade de dados acumuladods
+		int sent_bytes = 0; // quantidade de dados recebidos
+		while(accum < sizeFile) {
+            // printf("PUDIM 2\n");
+			if ((sent_bytes = recv(ns_file, &line, (sizeof(line)), 0)) < 0) {
+				perror("Send() 4");
+				exit(5);
+			}
+
+            if(sent_bytes > 0) {
+                printf("sent_bytes = %i\n", sent_bytes);
+            }
+
+			accum += sent_bytes;//track size of growing file
+
+			fwrite(line, sent_bytes, 1, fp);
+		}
+	}
+
+    fclose(fp);
+    close(s_file);
+    close(ns_file);
+    printf("Fechou tudo!\n");
+}
+
 
 void encerrar(const char list_command[]) {
     char comando_encerrar[COMMAND], nomeFile[256];
@@ -387,6 +451,10 @@ int main(int argc, char **argv){
 
         if ((strcmp(value[0], "enviar")) == 0) {
             enviar(value[0], value[1], value[2]);
+        }
+
+        if ((strcmp(value[0], "receber")) == 0) {
+            receber(value[0], value[1], value[2]);
         }
 
     } while(!variavelLoop);
