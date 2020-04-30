@@ -110,35 +110,40 @@ void conectar(char hostname[], char porta[]) {
     }
 }
 
-int baixar(const char list_command[]){
-    char localizacao[200], pacote[256],
-     nomeDoArquivo[200];
+int baixar(char list_command[]){
+    char localizacao[200], pacote[BUFSIZ],
+     nomeDoArquivo[200], mensagem[200];
     int qntd = 0;
 	ssize_t len;
 
-    printf("Digite o caminho e nome do arquivo\n");
-    memset(localizacao, 0, sizeof(localizacao));
-    fpurge(stdin);
-    fgets(localizacao,sizeof(localizacao),stdin);
-    strtok(localizacao,"\n");
-
-    //enviar comando
-    if (send(s, &list_command, (strlen(list_command)), 0) < 0)
+//verifica se existe nome do arquivo para enviar
+    if (list_command[1] == NULL)
     {
-        perror("Send()");
-        exit(5);
+        printf("Digite o nume do arquivo para receber\n");
+        exit(6);
     }
+    
+    //define nome do arquivo a ser criado
+    if(list_command[2] != NULL) {
+        strcpy(nomeDoArquivo, list_command[2]);
+    } else {
+        strcpy(nomeDoArquivo, list_command[1]);
+    }
+    
+    strncpy(mensagem, list_command[0], 1024);
+    strcat(mensagem," ");
+    strcat(mensagem, list_command[1]);
 
-    //enviar caminho do arquivo
-    if (send(s, &localizacao, (strlen(localizacao)), 0) < 0)
+    //enviar comando e nome do arquivo
+    if (send(s, &mensagem, (strlen(mensagem)), 0) < 0)
     {
         perror("Send()");
         exit(5);
     }
 
     //receber arquivo 
-    //primeiro recebo validacao, nome e tamanho
-    if (recv(s, &pacote, (sizeof(pacote)), 0) < 0)
+    //primeiro recebo validacao e tamanho
+    if (recv(s, &pacote, BUFSIZ, 0) < 0)
     {
 		fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
         perror("Recv()");
@@ -147,32 +152,26 @@ int baixar(const char list_command[]){
 
     strtok(pacote,"\n");
     char *token = strtok(pacote, " ");
-    if (strcmp(token, "200") == 0)
+    if (strcmp(token, "404") == 0)
     {
         fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
         return(1);
     }
     
     token = strtok(NULL, " ");
-    strcpy(nomeDoArquivo, token);
-	printf("Arquivo %s\n", nomeDoArquivo);
-
-    token = strtok(NULL, " ");
     qntd = atoi(token);
-
-    //segundo recebo os pacotes que formam o arquivo
 	FILE *received_file;
     received_file = fopen(nomeDoArquivo, "w");
 
-    for (int i = 0; i < qntd; i++)
+    //segundo recebo os pacotes que formam o arquivo
+    while (len = recv(s, &pacote, BUFSIZ, 0) > 0 && qntd > 0)
     {
-        if (len = recv(s, &pacote, (sizeof(pacote)), 0) < 0)
-        {
-            fprintf(stderr, "Erro ao baixar arquivo\n");
-            perror("Recv()");
-            return(1);
+        fwrite(&pacote,sizeof(char),len, received_file);
+        qntd -= len;
+        fprintf(stdout, "Recebidos %d bytes e aguardamos :- %d bytes\n", len, qntd);
+        if (qntd <= 0) {
+            break;
         }
-		fwrite(&pacote,sizeof(char),len, received_file);
     }
 
 	fclose(received_file);
@@ -187,9 +186,15 @@ int main(int argc, char **argv)
     do {
         variavelLoop = false;
         printf("Insira um comando:\n");
+        printf("opcoes:\n");
+        printf("conectar <nome do servidor> [<porta do servidor>]\n");
+        printf("listar");
+        printf("receber <arquivo remoto> [<arquivo local>]\n");
+        printf("enviar <arquivo local> [<arquivo remoto>]\n");
+        printf("encerrar\n");
 
         memset(command, 0, sizeof(command));
-        fpurge(stdin);
+        __fpurge(stdin);
         fgets(command,sizeof(command),stdin);
         strtok(command,"\n");
 
@@ -215,8 +220,8 @@ int main(int argc, char **argv)
             listar(value[0]);
         }
 
-	    if ((strcmp(value[0], "baixar")) == 0) {
-            baixar(value[0]);
+	    if ((strcmp(value[0], "receber")) == 0) {
+            baixar(value);
         }
 
         if ((strcmp(value[0], "encerrar")) == 0) {
