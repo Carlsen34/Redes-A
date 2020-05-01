@@ -151,12 +151,24 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     }
 
     //enviar a porta onde sera conectado o servidor ...
-    printf("port: %i\n", port_dados);
     if (send(s, &port_dados, (sizeof(port_dados)), 0) < 0)
     {
         perror("Send()");
         exit(5);
     }
+
+    while(ns_dados == 0)
+    {
+	  /*
+	  * Aceita uma conexao e cria um novo socket atraves do qual
+	  * ocorrera a comunicacao com o cliente.
+	  */
+	  namelen_dados = sizeof(client_dados);
+	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
+		perror("Accept()");
+		exit(5);
+	  }
+	}
 
     // le o nome do arquivo
     snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
@@ -185,11 +197,8 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     }
 
     fclose(fp);
-    // sleep(10);
-    //close(s_dados);
-    //int x = 1;
-	// setsockopt(ns_dados,SOL_SOCKET,SO_REUSEADDR, &x ,sizeof(int));
     close(ns_dados);
+    ns_dados = 0;
     printf("Fechou tudo!\n");
 }
 
@@ -201,7 +210,6 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
     int i, len, accum;
     long sizeFile = 0;
     char line[FILESIZE];
-    int s_file = 0, ns_file = 0, port_dados = 0;
 
     strcpy(str_aux, comando);
     // enviar o comando receber ...
@@ -218,35 +226,46 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
         exit(5);
     }
 
-    //cria socket e espera a conexao
-    create_socket(&s_file, &ns_file, &port_dados);
-    // printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
+    //enviar a porta para o servidor se conectar
+    printf("port: %i\n", port_dados);
     if (send(s, &port_dados, (sizeof(port_dados)), 0) < 0)
     {
         perror("Send()");
         exit(5);
     }
+
+    while(ns_dados == 0)
+    {
+	  /*
+	  * Aceita uma conexao e cria um novo socket atraves do qual
+	  * ocorrera a comunicacao com o cliente.
+	  */
+	  namelen_dados = sizeof(client_dados);
+	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
+		perror("Accept()");
+		exit(5);
+	  }
+	}
     
     // recebe qual o tamanho do arquivo
-    if (recv(ns_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
+    if (recv(ns_dados, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
         perror("Send() 3");
         exit(5);
     }
-    printf("sizeFile: %li\n", sizeFile);
+    // printf("sizeFile: %li\n", sizeFile);
 
     // le o nome do arquivo
-    printf("nome_local: %s\n", nome_local);
+    // printf("nome_local: %s\n", nome_local);
     snprintf(file_name, strlen(nome_local), "%s", nome_local);
-    printf("file_name: %s\n", file_name);
-    printf("(sizeof(line)): %lu\n", (sizeof(line)));
+    // printf("file_name: %s\n", file_name);
+    // printf("(sizeof(line)): %lu\n", (sizeof(line)));
     fp = fopen(file_name, "wb");
 
     if(fp) {
 		accum = 0; // quantidade de dados acumuladods
 		int sent_bytes = 0; // quantidade de dados recebidos
 		while(accum < sizeFile) {
-            // printf("PUDIM 2\n");
-			if ((sent_bytes = recv(ns_file, &line, (sizeof(line)), 0)) < 0) {
+			if ((sent_bytes = recv(ns_dados, &line, (sizeof(line)), 0)) < 0) {
 				perror("Send() 4");
 				exit(5);
 			}
@@ -262,8 +281,8 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
 	}
 
     fclose(fp);
-    close(s_file);
-    close(ns_file);
+    close(ns_dados);
+    ns_dados = 0;
     printf("Fechou tudo!\n");
 }
 
@@ -315,13 +334,6 @@ void listar(const char list_command[]) {
 		exit(5);
 	  }
 	}
-
-    // if (recv(ns_dados, &nomeFile, (sizeof(nomeFile)), 0) < 0)
-    // {
-    //     perror("Recv()");
-    //     exit(6);
-    // }
-    // printf("nomeFile: %s\n", nomeFile);
 
     // Recebe a lista de arquivos que estao no servidor...
     do {
@@ -479,7 +491,7 @@ int main(int argc, char **argv){
 
         while( token != NULL ) {
             strcpy(value[i],token);
-            printf("Token[%i] = %s\n", i, token);
+            // printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
         }
