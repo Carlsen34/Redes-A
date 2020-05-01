@@ -42,18 +42,14 @@ struct args parameters;
 pthread_t thread_id[MaxArray];
 unsigned short port;
 int countClients = 0;
+int s_file, ns_file;
 
 char command[commandSizes];
 
-int conectar_file(char hostname[], char porta[]) {
-    int s_file;
+int* conectar_file(char hostname[], int porta) {
     unsigned short port;
     struct hostent *hostnm;
     struct sockaddr_in server;
-    char teste[200];
-
-    printf("hostname: %s\n", hostname);
-    printf("porta: %s\n", porta);
 
     /*
      * Obtendo o endereco IP do servidor
@@ -64,7 +60,7 @@ int conectar_file(char hostname[], char porta[]) {
         fprintf(stderr, "Gethostbyname failed\n");
         exit(2);
     }
-    port = (unsigned short) atoi(porta);
+    port = (unsigned short) (porta);
 
     /*
      * Define o endereco IP e a porta do servidor
@@ -83,11 +79,15 @@ int conectar_file(char hostname[], char porta[]) {
     }
 
     /* Estabelece conexao com o servidor */
-    if (connect(s_file, (struct sockaddr *)&server, sizeof(server)) < 0)
+    if ((connect(s_file, (struct sockaddr *)&server, sizeof(server))) < 0)
     {
         perror("Connect()");
         exit(4);
     }
+
+	printf("hostname: %s\n", hostname);
+    printf("porta: %i\n", porta);
+
 
     return s_file;
 }
@@ -110,6 +110,7 @@ void enviar(int ns, int s) {
 	char buf[200], file_name[200];
 	char line[FILESIZE];
 	long size_file;
+	int port = 0;
 
 	// recebe o nome do arquivo que sera salvo
 	if (recv(ns, &buf, sizeof(buf), 0) == -1) {
@@ -117,9 +118,16 @@ void enviar(int ns, int s) {
 		exit(6);
 	}
 
-	//conecta com o cliente na porta 21
+	// recebe o numero da porta que sera feito a transferencia dos dados
+	if (recv(ns, &port, sizeof(port), 0) == -1)
+	{
+		perror("Recv()");
+		exit(6);
+	}
+
+	//conecta com o cliente na porta
 	int s_file;
-	s_file = conectar_file("localhost", "21");
+	s_file = conectar_file("localhost", port);
 
 	//recebe o tamanho do arquivo a ser recebido
 	if (recv(s_file, &size_file, sizeof(size_file), 0) == -1) {
@@ -154,16 +162,23 @@ void receber(int ns, int s) {
 	char buf[200], file_name[200];
 	char line[FILESIZE];
 	long size_file = 0;
-
+	int port = 0;
 
 	// recebe o nome do arquivo que sera enviado ao cliente
 	if (recv(ns, &buf, sizeof(buf), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
+
+	if (recv(ns, &port, sizeof(port), 0) == -1)
+	{
+		perror("Recv()");
+		exit(6);
+	}
+
 	//conecta com o cliente na porta 21
 	int s_file;
-	s_file = conectar_file("localhost", "21");
+	s_file = conectar_file("localhost", port);
 
 	//envia o tamanho do arquivo a ser enviado 
 	size_file = file_size(buf);
@@ -209,26 +224,51 @@ void listar(int ns) {
 	char cwd[PATH_MAX];
 	char stop[] = "stop";
 	char copy[256];
+	int port = 0;
+	printf("s_file: %i\n", s_file);
 
-	// printf("Listar todos os arquivos ... 2\n");
+	// recebe a porta do socket criado pelo cliente ...
+	if (recv(ns, &port, sizeof(port), 0) == -1)
+	{
+		perror("Recv()");
+		exit(6);
+	}
+	printf("port: %i\n", port);
+
+	//conecta com o cliente na porta
+	conectar_file("localhost", port);
+	//printf("s_file: %i\n", s_file);
+
+
+	// procura o diretorio
 	if (getcwd(cwd, sizeof(cwd)) != NULL) {
 		printf("Current working dir: %s\n", cwd);
 	}
 
+	// le o diretorio
     if ((dir = opendir(cwd)) == NULL) {
         perror ("Cannot open .");
         exit (1);
     }
 
+	// strcpy(copy, "TESTE...");
+	// if (send(s_file, &copy, (sizeof(copy)), 0) < 0) {
+	// 	perror("Send() 12");
+	// 	exit(7);
+	// }
+
+	// le os nomes de cada arquivo do diretorio
+	memset(&command, 0, sizeof(command));
 	while (dir) {
 		if ((dp = readdir(dir)) != NULL) {
 			strcpy(copy, dp->d_name);
-			if (send(ns, &copy, (sizeof(copy)), 0) < 0) {
-				perror("Send()");
+			printf("copy: %s\n", copy);
+			if (send(s_file, &copy, (sizeof(copy)), 0) < 0) {
+				perror("Send() 3");
 				exit(7);
 			}
 		} else {
-			if (send(ns, &stop, (sizeof(stop)), 0) < 0) {
+			if (send(s_file, &stop, (sizeof(stop)), 0) < 0) {
 				perror("Send()");
 				exit(7);
 			}
@@ -237,6 +277,12 @@ void listar(int ns) {
 			break;
 		}
 	}
+
+	printf("s_file - antes: %i\n", s_file);
+	// int x = 1;
+	// setsockopt(s_file,SOL_SOCKET,SO_REUSEADDR, &x ,sizeof(int));
+	close(s_file);
+	printf("s_file - depois: %i\n", s_file);
 }
 
 void *recebe_comando(void* parameters){
