@@ -46,7 +46,7 @@ int s_file, ns_file;
 
 char command[commandSizes];
 
-int* conectar_file(char hostname[], int porta) {
+int conectar_file(char hostname[], int porta) {
     unsigned short port;
     struct hostent *hostnm;
     struct sockaddr_in server;
@@ -169,16 +169,18 @@ void receber(int ns, int s) {
 		perror("Recv()");
 		exit(6);
 	}
+	printf("buf: %s\n", buf);
 
-	if (recv(ns, &port, sizeof(port), 0) == -1)
+	// receber o numero da porta o cliente espera a conexao
+	if (recv(ns, &port, (sizeof(port)), 0) == -1)
 	{
 		perror("Recv()");
 		exit(6);
 	}
+	printf("port: %i\n", port);
 
-	//conecta com o cliente na porta 21
-	int s_file;
-	s_file = conectar_file("localhost", port);
+	//conecta com o cliente na porta
+	int s_file = conectar_file("localhost", port);
 
 	//envia o tamanho do arquivo a ser enviado 
 	size_file = file_size(buf);
@@ -225,7 +227,6 @@ void listar(int ns) {
 	char stop[] = "stop";
 	char copy[256];
 	int port = 0;
-	printf("s_file: %i\n", s_file);
 
 	// recebe a porta do socket criado pelo cliente ...
 	if (recv(ns, &port, sizeof(port), 0) == -1)
@@ -251,18 +252,12 @@ void listar(int ns) {
         exit (1);
     }
 
-	// strcpy(copy, "TESTE...");
-	// if (send(s_file, &copy, (sizeof(copy)), 0) < 0) {
-	// 	perror("Send() 12");
-	// 	exit(7);
-	// }
-
 	// le os nomes de cada arquivo do diretorio
 	memset(&command, 0, sizeof(command));
 	while (dir) {
 		if ((dp = readdir(dir)) != NULL) {
 			strcpy(copy, dp->d_name);
-			printf("copy: %s\n", copy);
+			// printf("copy: %s\n", copy);
 			if (send(s_file, &copy, (sizeof(copy)), 0) < 0) {
 				perror("Send() 3");
 				exit(7);
@@ -278,11 +273,7 @@ void listar(int ns) {
 		}
 	}
 
-	printf("s_file - antes: %i\n", s_file);
-	// int x = 1;
-	// setsockopt(s_file,SOL_SOCKET,SO_REUSEADDR, &x ,sizeof(int));
 	close(s_file);
-	printf("s_file - depois: %i\n", s_file);
 }
 
 void *recebe_comando(void* parameters){
@@ -305,7 +296,7 @@ void *recebe_comando(void* parameters){
 
 		while( token != NULL ) {
             strcpy(value[i],token);
-			printf("Token[%i] = %s\n", i, token);
+			// printf("Token[%i] = %s\n", i, token);
             token = strtok(NULL, " ");
             i++;
 		}
@@ -323,6 +314,7 @@ void *recebe_comando(void* parameters){
         }
 
 		if ((strcmp(value[0], "receber")) == 0) {
+			printf("Voltou receber ... \n");
             receber(args.ns, args.s);
 			printf("Voltou receber ... \n");
         }
