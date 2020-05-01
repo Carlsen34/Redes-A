@@ -25,10 +25,15 @@ Kaíque Ferreira Fávero 15118698
  */
  
 #define COMMAND 200
-#define SEGMENT 5000 //approximate target size of small file
 #define FILESIZE 4096
 
 int s;
+
+//variaveis para a criacao do socket de dados
+int s_dados, ns_dados, port_dados;
+struct sockaddr_in client_dados; 
+struct sockaddr_in server_dados; 
+int namelen_dados;
 
 char command[COMMAND];
 
@@ -44,26 +49,22 @@ long file_size(char *name) {
     return size;
 }
 
-void create_socket(int *s_enviar, int *ns_enviar) {
-    // int *s_enviar;                     /* Socket para aceitar conexoes       */
-	// int *ns_enviar = 0;                /* Socket conectado ao cliente        */
+void create_socket() {
+    // int s_dados;                     /* Socket para aceitar conexoes       */
+	// int *ns_dados = 0;                /* Socket conectado ao cliente        */
     unsigned short port;
-	struct sockaddr_in client_enviar; 
-	struct sockaddr_in server_enviar; 
-	int namelen_enviar;
-	FILE *fp;
 
     /*
      * O primeiro argumento (argv[1]) e a porta
      * onde o servidor aguardara por conexoes
      */
 
-    port = (unsigned short) 21;
+    port = (unsigned short) 0;
 
     /*
      * Cria um socket TCP (stream) para aguardar conexoes
      */
-    if ((*s_enviar = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    if ((s_dados = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
 	  perror("Socket()");
 	  exit(2);
@@ -74,47 +75,56 @@ void create_socket(int *s_enviar, int *ns_enviar) {
     * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
     * os enderecos IP
     */
-    server_enviar.sin_family = AF_INET;   
-    server_enviar.sin_port   = htons(port);       
-    server_enviar.sin_addr.s_addr = INADDR_ANY;
+    server_dados.sin_family = AF_INET;   
+    server_dados.sin_port   = htons(port);       
+    server_dados.sin_addr.s_addr = INADDR_ANY;
 
-	/* Imprime qual porta E IP foram utilizados. */
-    printf("\nPorta utilizada (enviar): %d", ntohs(server_enviar.sin_port));
-    printf("\nIP utilizado (enviar): %d\n", ntohs(server_enviar.sin_addr.s_addr));
-
-	/*
+    /*
      * Liga o servidor a porta definida anteriormente.
      */
-    if (bind(*s_enviar, (struct sockaddr *)&server_enviar, sizeof(server_enviar)) < 0)
+    if (bind(s_dados, (struct sockaddr *)&server_dados, sizeof(server_dados)) < 0)
     {
 		perror("Bind() aqui ... ");
 		exit(3);
     }
 
+    /* Consulta qual porta foi utilizada. */
+    namelen_dados = sizeof(server_dados);
+    if (getsockname(s_dados, (struct sockaddr *) &server_dados, &namelen_dados) < 0) {
+        perror("getsockname()");
+        exit(1);
+    }
+
+	/* Imprime qual porta E IP foram utilizados. */
+    port_dados = ntohs(server_dados.sin_port);
+    printf("\nPorta utilizada (enviar): %d", ntohs(server_dados.sin_port));
+    printf("\nIP utilizado (enviar): %d\n", ntohs(server_dados.sin_addr.s_addr));
+
     /*
      * Prepara o socket para aguardar por conexoes e
      * cria uma fila de conexoes pendentes.
      */
-    if (listen(*s_enviar, 1) != 0)
+    if (listen(s_dados, 1) != 0)
     {
 	  perror("Listen()");
 	  exit(4);
     }
 
 
-     while(*ns_enviar == 0)
-    {
-	  /*
-	  * Aceita uma conexao e cria um novo socket atraves do qual
-	  * ocorrera a comunicacao com o cliente.
-	  */
-      printf("\n>>> while(1) - %i\n", *ns_enviar == 0);
-	  namelen_enviar = sizeof(client_enviar);
-	  if ((*ns_enviar = accept(*s_enviar, (struct sockaddr *) &client_enviar, (socklen_t *) &namelen_enviar)) == -1) {
-		perror("Accept()");
-		exit(5);
-	  }
-	}
+    //  while(ns_dados == 0)
+    // {
+	//   /*
+	//   * Aceita uma conexao e cria um novo socket atraves do qual
+	//   * ocorrera a comunicacao com o cliente.
+	//   */
+	//   namelen_dados = sizeof(client_dados);
+	//   if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
+	// 	perror("Accept()");
+	// 	exit(5);
+	//   }
+	// }
+
+    // return ntohs(server_dados.sin_port);
 }
 
 void enviar(char comando[], char nome_local[], char nome_remoto[]) {
@@ -125,7 +135,6 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     int i, len, accum;
     long sizeFile = file_size(nome_local);
     char line[FILESIZE];
-    int s_file = 0, ns_file = 0;
 
     strcpy(str_aux, comando);
     // enviar o comando enviar ...
@@ -141,17 +150,21 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
         exit(5);
     }
 
-    //cria socket e espera a conexao
-    create_socket(&s_file, &ns_file);
-    printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
+    //enviar a porta onde sera conectado o servidor ...
+    printf("port: %i\n", port_dados);
+    if (send(s, &port_dados, (sizeof(port_dados)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
 
     // le o nome do arquivo
     snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
     fp = fopen(file_name, "rb");
-    printf("file_name: %s\n", file_name);
+    // printf("file_name: %s\n", file_name);
 
     // enviar qual o tamanho do arquivo
-    if (send(ns_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
+    if (send(ns_dados, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
         perror("Send() 3");
         exit(5);
     }
@@ -159,10 +172,10 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     if(fp) {
         int sent_bytes = 0;
         while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
-            printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
+            // printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
             sizeFile -= sent_bytes;
 
-            if (send(ns_file, &line, sent_bytes, 0) < 0) {
+            if (send(ns_dados, &line, sent_bytes, 0) < 0) {
                 perror("Send()");
                 exit(5);
             }
@@ -172,8 +185,11 @@ void enviar(char comando[], char nome_local[], char nome_remoto[]) {
     }
 
     fclose(fp);
-    close(s_file);
-    close(ns_file);
+    // sleep(10);
+    //close(s_dados);
+    //int x = 1;
+	// setsockopt(ns_dados,SOL_SOCKET,SO_REUSEADDR, &x ,sizeof(int));
+    close(ns_dados);
     printf("Fechou tudo!\n");
 }
 
@@ -185,7 +201,7 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
     int i, len, accum;
     long sizeFile = 0;
     char line[FILESIZE];
-    int s_file = 0, ns_file = 0;
+    int s_file = 0, ns_file = 0, port_dados = 0;
 
     strcpy(str_aux, comando);
     // enviar o comando receber ...
@@ -203,8 +219,13 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
     }
 
     //cria socket e espera a conexao
-    create_socket(&s_file, &ns_file);
-    printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
+    create_socket(&s_file, &ns_file, &port_dados);
+    // printf("s_file: %i - ns_file: %i\n", s_file, ns_file);
+    if (send(s, &port_dados, (sizeof(port_dados)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
     
     // recebe qual o tamanho do arquivo
     if (recv(ns_file, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
@@ -246,7 +267,6 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
     printf("Fechou tudo!\n");
 }
 
-
 void encerrar(const char list_command[]) {
     char comando_encerrar[COMMAND], nomeFile[256];
     strcpy(comando_encerrar, list_command);
@@ -256,33 +276,70 @@ void encerrar(const char list_command[]) {
         exit(5);
     }
     close(s);
+    close(s_dados);
     printf("Finalizando o cliente ...\n");
     exit(0);
 }
 
 void listar(const char list_command[]) {
     char comando_listar[COMMAND], nomeFile[256];
-    strcpy(comando_listar, list_command);
     DIR *dir;
     struct dirent *dp;
     int count = 0;
 
-    if (send(s, &comando_listar, (strlen(comando_listar)), 0) < 0)
+    //envia o comando "listar"
+    strcpy(comando_listar, list_command);
+    if (send(s, &comando_listar, (sizeof(comando_listar)), 0) < 0)
     {
         perror("Send()");
         exit(5);
     }
 
+    printf("port: %i\n", port_dados);
+    // enviar para o servidor a porta q ocorerra a comunicacao com o servidor
+    if (send(s, &port_dados, (sizeof(port_dados)), 0) < 0)
+    {
+        perror("Send()");
+        exit(5);
+    }
+
+    while(ns_dados == 0)
+    {
+	  /*
+	  * Aceita uma conexao e cria um novo socket atraves do qual
+	  * ocorrera a comunicacao com o cliente.
+	  */
+	  namelen_dados = sizeof(client_dados);
+	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
+		perror("Accept()");
+		exit(5);
+	  }
+	}
+
+    // if (recv(ns_dados, &nomeFile, (sizeof(nomeFile)), 0) < 0)
+    // {
+    //     perror("Recv()");
+    //     exit(6);
+    // }
+    // printf("nomeFile: %s\n", nomeFile);
+
     // Recebe a lista de arquivos que estao no servidor...
-    while((strcmp(nomeFile, "stop")) != 0) {
-        if (recv(s, &nomeFile, (sizeof(nomeFile)), 0) < 0)
+    do {
+        if (recv(ns_dados, &nomeFile, (sizeof(nomeFile)), 0) < 0)
         {
             perror("Recv()");
             exit(6);
         }
 
-        printf("> %s\n", nomeFile);
-    };
+        if((strcmp(nomeFile, "stop")) != 0) {
+            printf("> %s\n", nomeFile);
+        }
+
+    }while((strcmp(nomeFile, "stop")) != 0);
+
+    //close(s_dados);
+    close(ns_dados);
+    ns_dados = 0;
 }
 
 void conectar(char hostname[], char porta[]) {
@@ -399,6 +456,7 @@ int baixar(char list_command[]){
 // MAIN FUNCTION
 int main(int argc, char **argv){
     bool variavelLoop = true;
+    create_socket();
 
     do {
         variavelLoop = false;
@@ -414,9 +472,6 @@ int main(int argc, char **argv){
         __fpurge(stdin);
         fgets(command,sizeof(command),stdin);
 
-        char comando[strlen(command)]; 
-        strcpy(comando, command);
-
         char *token = strtok(command, " ");
 
         int i = 0;
@@ -429,42 +484,31 @@ int main(int argc, char **argv){
             i++;
         }
 
-        printf("command: %s\n", value[0]);
+        //printf("command: %s\n", value[0]);
         strtok(value[0],"\n");
 
         if ((strcmp(value[0], "conectar")) == 0) {
-            conectar(value[1], value[2]);
-        }
-
-        if ((strcmp(value[0], "listar")) == 0) {
-            printf("Listar foi chamado\n");
+            if((strcmp(value[1],"localhost")) == 0) {
+                conectar(value[1], value[2]);
+                create_socket(); // cria o socket de dados
+            }
+        } else if ((strcmp(value[0], "listar")) == 0) {
+            printf("Entrou aqui para listar ...\n");
             listar(value[0]);
-        }
-
-	    if ((strcmp(value[0], "receber")) == 0) {
-            baixar(value);
-        }
-
-        if ((strcmp(value[0], "encerrar")) == 0) {
+        } else if ((strcmp(value[0], "encerrar")) == 0) {
             encerrar(value[0]);
-        }
-
-        if ((strcmp(value[0], "enviar")) == 0) {
+        } else if ((strcmp(value[0], "enviar")) == 0) {
             enviar(value[0], value[1], value[2]);
-        }
-
-        if ((strcmp(value[0], "receber")) == 0) {
+        } else if ((strcmp(value[0], "receber")) == 0) {
             receber(value[0], value[1], value[2]);
+        } else {
+            printf("Comando inexistente!\n");
         }
 
     } while(!variavelLoop);
 
     /* Fecha o socket */
     close(s);
-
     printf("Cliente terminou com sucesso.\n");
     exit(0);
-
 }
-
-
