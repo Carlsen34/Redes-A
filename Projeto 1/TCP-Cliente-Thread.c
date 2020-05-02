@@ -19,7 +19,6 @@ Kaíque Ferreira Fávero 15118698
 #include <libgen.h>
 #include <sys/stat.h>
 
-
 /*
  * Cliente TCP
  */

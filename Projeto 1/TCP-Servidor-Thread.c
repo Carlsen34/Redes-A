@@ -24,7 +24,6 @@ Kaíque Ferreira Fávero 15118698
 #include <sys/stat.h>
 
 
-
 /*
  * Servidor TCP
  */
