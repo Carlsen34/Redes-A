@@ -24,6 +24,7 @@ Kaíque Ferreira Fávero 15118698
 #include <sys/stat.h>
 
 
+
 /*
  * Servidor TCP
  */
@@ -109,14 +110,22 @@ void enviar(int ns, int s) {
 	FILE *fp;
 	char buf[200], file_name[200];
 	char line[FILESIZE];
+	char path[PATH_MAX] = "dados/";
 	long size_file;
 	int port = 0;
+
+	// cria o diretorio de dados
+	if((mkdir("dados", 0777)) == -1) {
+		printf("Problems creating the dados folder ...\n");
+	}
 
 	// recebe o nome do arquivo que sera salvo
 	if (recv(ns, &buf, sizeof(buf), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
+	strcat(path, buf);
+	printf("path: %s\n", path);
 
 	// recebe o numero da porta que sera feito a transferencia dos dados
 	if (recv(ns, &port, sizeof(port), 0) == -1)
@@ -135,7 +144,7 @@ void enviar(int ns, int s) {
 		exit(6);
 	}
 
-	snprintf(file_name, strlen(buf), "%s", buf);// pega o nome do arquivo de um uma variavel
+	snprintf(file_name, strlen(path), "%s", path);// pega o nome do arquivo de um uma variavel
 	fp = fopen(file_name, "wb");// abre o arquivo
 
 	if(fp) {
@@ -161,15 +170,22 @@ void receber(int ns, int s) {
 	FILE *fp;
 	char buf[200], file_name[200];
 	char line[FILESIZE];
+	char path[PATH_MAX] = "dados/";
 	long size_file = 0;
 	int port = 0;
+
+	// cria o diretorio de dados
+	if((mkdir("dados", 0777)) == -1) {
+		printf("Problems creating the dados folder ...\n");
+	}
 
 	// recebe o nome do arquivo que sera enviado ao cliente
 	if (recv(ns, &buf, sizeof(buf), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
-	printf("buf: %s\n", buf);
+	strcat(path, buf);
+	// printf("path: %s\n", path);
 
 	// receber o numero da porta o cliente espera a conexao
 	if (recv(ns, &port, (sizeof(port)), 0) == -1)
@@ -183,14 +199,14 @@ void receber(int ns, int s) {
 	int s_file = conectar_file("localhost", port);
 
 	//envia o tamanho do arquivo a ser enviado 
-	size_file = file_size(buf);
+	size_file = file_size(path);
 	printf("size_file: %li\n", size_file);
 	if (send(s_file, &size_file, sizeof(size_file), 0) == -1) {
 		perror("Recv()");
 		exit(6);
 	}
 
-	snprintf(file_name, strlen(buf)+1, "%s", buf);// pega o nome do arquivo de um uma variavel
+	snprintf(file_name, strlen(path)+1, "%s", path);// pega o nome do arquivo de um uma variavel
 	fp = fopen(file_name, "rb");// abre o arquivo
 	printf("file_name: %s\n", file_name);
 
@@ -227,6 +243,11 @@ void listar(int ns) {
 	char stop[] = "stop";
 	char copy[256];
 	int port = 0;
+	// int result = mkdir("/dados", 0777);
+
+	if((mkdir("dados", 0777)) == -1) {
+		printf("Problems creating the dados folder ...\n");
+	}
 
 	// recebe a porta do socket criado pelo cliente ...
 	if (recv(ns, &port, sizeof(port), 0) == -1)
@@ -238,14 +259,13 @@ void listar(int ns) {
 
 	//conecta com o cliente na porta
 	conectar_file("localhost", port);
-	//printf("s_file: %i\n", s_file);
-
 
 	// procura o diretorio
 	if (getcwd(cwd, sizeof(cwd)) != NULL) {
 		printf("Current working dir: %s\n", cwd);
 	}
 
+	strcat(cwd, "/dados");
 	// le o diretorio
     if ((dir = opendir(cwd)) == NULL) {
         perror ("Cannot open .");
