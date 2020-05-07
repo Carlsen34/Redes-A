@@ -112,10 +112,11 @@ void enviar(int ns, int s) {
 	char path[PATH_MAX] = "dados/";
 	long size_file;
 	int port = 0;
+	struct stat st = {0};
 
 	// cria o diretorio de dados
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe o nome do arquivo que sera salvo
@@ -172,10 +173,11 @@ void receber(int ns, int s) {
 	char path[PATH_MAX] = "dados/";
 	long size_file = 0;
 	int port = 0;
+	struct stat st = {0};
 
 	// cria o diretorio de dados
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe o nome do arquivo que sera enviado ao cliente
@@ -242,10 +244,10 @@ void listar(int ns) {
 	char stop[] = "stop";
 	char copy[256];
 	int port = 0;
-	// int result = mkdir("/dados", 0777);
+	struct stat st = {0};
 
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe a porta do socket criado pelo cliente ...
@@ -261,10 +263,10 @@ void listar(int ns) {
 
 	// procura o diretorio
 	if (getcwd(cwd, sizeof(cwd)) != NULL) {
+		strcat(cwd, "/dados");
 		printf("Current working dir: %s\n", cwd);
 	}
 
-	strcat(cwd, "/dados");
 	// le o diretorio
     if ((dir = opendir(cwd)) == NULL) {
         perror ("Cannot open .");
