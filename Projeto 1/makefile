@@ -1,12 +1,12 @@
 # Make file projeto 1 de redes
 all: server.o cliente.o
 
-server.o: TCP-Servidor-Thread.c
-	gcc -pthread TCP-Servidor-Thread.c -o server
+server.o: servidor_psta.c
+	gcc -pthread servidor_psta.c -o servidor
 	#./server 5000
 
-cliente.o: TCP-Cliente-Thread.c
-	gcc -pthread TCP-Cliente-Thread.c -o cliente
+cliente.o: cliente_psta.c
+	gcc -pthread cliente_psta.c -o cliente
 	#./cliente
 clean:
 	rm -rf *.o
