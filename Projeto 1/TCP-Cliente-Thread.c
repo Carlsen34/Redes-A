@@ -19,7 +19,6 @@ Kaíque Ferreira Fávero 15118698
 #include <libgen.h>
 #include <sys/stat.h>
 
-
 /*
  * Cliente TCP
  */
@@ -397,74 +396,6 @@ void conectar(char hostname[], char porta[]) {
     }
 }
 
-int baixar(char list_command[]){
-    char localizacao[200], pacote[BUFSIZ],
-     nomeDoArquivo[200], mensagem[200];
-    int qntd = 0;
-	ssize_t len;
-
-//verifica se existe nome do arquivo para enviar
-    if (list_command[1] == NULL)
-    {
-        printf("Digite o nume do arquivo para receber\n");
-        exit(6);
-    }
-    
-    //define nome do arquivo a ser criado
-    if(list_command[2] != NULL) {
-        strcpy(nomeDoArquivo, list_command[2]);
-    } else {
-        strcpy(nomeDoArquivo, list_command[1]);
-    }
-    
-    strncpy(mensagem, list_command[0], 1024);
-    strcat(mensagem," ");
-    strcat(mensagem, list_command[1]);
-
-    //enviar comando e nome do arquivo
-    if (send(s, &mensagem, (strlen(mensagem)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    //receber arquivo 
-    //primeiro recebo validacao e tamanho
-    if (recv(s, &pacote, BUFSIZ, 0) < 0)
-    {
-		fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
-        perror("Recv()");
-        exit(6);
-    }
-
-    strtok(pacote,"\n");
-    char *token = strtok(pacote, " ");
-    if (strcmp(token, "404") == 0)
-    {
-        fprintf(stderr, "Arquivo nao encontrado no servirdor\n");
-        return(1);
-    }
-    
-    token = strtok(NULL, " ");
-    qntd = atoi(token);
-	FILE *received_file;
-    received_file = fopen(nomeDoArquivo, "w");
-
-    //segundo recebo os pacotes que formam o arquivo
-    while (len = recv(s, &pacote, BUFSIZ, 0) > 0 && qntd > 0)
-    {
-        fwrite(&pacote,sizeof(char),len, received_file);
-        qntd -= len;
-        fprintf(stdout, "Recebidos %d bytes e aguardamos :- %d bytes\n", len, qntd);
-        if (qntd <= 0) {
-            break;
-        }
-    }
-
-	fclose(received_file);
-    return(0);
-}
-
 // MAIN FUNCTION
 int main(int argc, char **argv){
     bool variavelLoop = true;
@@ -473,15 +404,9 @@ int main(int argc, char **argv){
     do {
         variavelLoop = false;
         printf("Insira um comando:\n");
-        printf("opcoes:\n");
-        printf("conectar <nome do servidor> [<porta do servidor>]\n");
-        printf("listar");
-        printf("receber <arquivo remoto> [<arquivo local>]\n");
-        printf("enviar <arquivo local> [<arquivo remoto>]\n");
-        printf("encerrar\n");
 
         memset(command, 0, sizeof(command));
-        __fpurge(stdin);
+        fpurge(stdin);
         fgets(command,sizeof(command),stdin);
 
         char *token = strtok(command, " ");

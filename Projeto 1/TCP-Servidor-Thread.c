@@ -24,7 +24,6 @@ Kaíque Ferreira Fávero 15118698
 #include <sys/stat.h>
 
 
-
 /*
  * Servidor TCP
  */
@@ -113,10 +112,11 @@ void enviar(int ns, int s) {
 	char path[PATH_MAX] = "dados/";
 	long size_file;
 	int port = 0;
+	struct stat st = {0};
 
 	// cria o diretorio de dados
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe o nome do arquivo que sera salvo
@@ -173,10 +173,11 @@ void receber(int ns, int s) {
 	char path[PATH_MAX] = "dados/";
 	long size_file = 0;
 	int port = 0;
+	struct stat st = {0};
 
 	// cria o diretorio de dados
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe o nome do arquivo que sera enviado ao cliente
@@ -243,10 +244,10 @@ void listar(int ns) {
 	char stop[] = "stop";
 	char copy[256];
 	int port = 0;
-	// int result = mkdir("/dados", 0777);
+	struct stat st = {0};
 
-	if((mkdir("dados", 0777)) == -1) {
-		printf("Problems creating the dados folder ...\n");
+	if (stat("/dados", &st) == -1) {
+		mkdir("dados", 0777);
 	}
 
 	// recebe a porta do socket criado pelo cliente ...
@@ -262,10 +263,10 @@ void listar(int ns) {
 
 	// procura o diretorio
 	if (getcwd(cwd, sizeof(cwd)) != NULL) {
+		strcat(cwd, "/dados");
 		printf("Current working dir: %s\n", cwd);
 	}
 
-	strcat(cwd, "/dados");
 	// le o diretorio
     if ((dir = opendir(cwd)) == NULL) {
         perror ("Cannot open .");
@@ -325,10 +326,6 @@ void *recebe_comando(void* parameters){
             listar(args.ns);
         }
 
-		if ((strcmp(value[0], "baixar")) == 0) {
-            baixar(parameters);
-        }
-
 		if ((strcmp(value[0], "encerrar")) == 0) {
             encerrar(args.ns, args.s, args.thread_id);
         }
@@ -347,77 +344,7 @@ void *recebe_comando(void* parameters){
 	return NULL;
 }
 
-void baixar(void* parameters){
-	struct args args = *((struct args*) parameters);
-	DIR *dir;
-	struct dirent *dp;
-	char copy[256], cwd[PATH_MAX], fileName[256];
-
-	//nome do arquivo
-
-	//verificar se arquivo existe
-	getcwd(cwd, sizeof(cwd));
-
-	if ((dir = opendir(cwd)) == NULL) {
-    	perror ("Cannot open .");
-    	exit (1);
-    }
-
-	while (dir) {
-		if ((dp = readdir(dir)) != NULL) {
-			printf("Arquivo lido: %s, Arquivo procurado: %s\n", dp->d_name, fileName);
-            if (strcmp(dp->d_name, fileName) == 0) {
-				//achou arquivo
-				closedir(dir);
-
-				char localArquivo[1024]; 
-                strncpy(localArquivo, cwd, 1024);
-                strcat(localArquivo,fileName);
-
-				FILE * f = fopen(localArquivo, "rb");
-                if((fseek(f, 0, SEEK_END))<0){printf("ERRO DURANTE fseek");}
-
-                int len = (int) ftell(f);   
-				char mensagem[200] = "200";
-				strcat(mensagem, (char*) len); 
-                printf("Tamanho do arquivo: %d\n", len);
-
-				//enviar validacao e quantidade de pacotes
-				if (send(args.ns, &mensagem, (strlen(mensagem)), 0) < 0)
-    			{
-        			perror("Send()");
-        			exit(5);
-    			}
-
-				//enviar os pacotes
-				int fd = open(localArquivo, "r");
-                off_t offset = 0;
-                int sent_bytes = 0;
-                //localArquivo = NULL;
-                if (fd == -1) {
-                    fprintf(stderr, "Error opening file");
-                    exit(EXIT_FAILURE);
-                }
-
-                while (((sent_bytes = sendfile(args.ns, fd, &offset, BUFSIZ)) > 0)&& (len > 0)) {
-                    fprintf(stdout, "1. Servidor enviou %d bytes do arquivo, offset Ã© agora : %d e os dados restantes = %d\n", sent_bytes, (int)offset, len);
-                    len -= sent_bytes;
-                    fprintf(stdout, "2.Servidor enviou %d bytes do arquivo, offset Ã© agora : %d e os dados restantes = %d\n", sent_bytes, (int)offset, len);
-                    if (len <= 0) {
-                        break;
-                    }
-                }
-
-				break;
-			}
-		}
-	}
-	
-	//se nao achar, retornar 404
-}
-
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
 	int s;                     /* Socket para aceitar conexoes       */
 	int ns;                    /* Socket conectado ao cliente        */
 	struct sockaddr_in client; 
@@ -429,7 +356,7 @@ int main(int argc, char **argv)
      */
     if (argc != 2)
     {
-	  fprintf(stderr, "\nUse: %s porta\n", argv[0]);
+	  fprintf(stderr, "\nUse: %s porta", argv[0]);
 	  exit(1);
     }
 
@@ -462,8 +389,8 @@ int main(int argc, char **argv)
      */
     if (bind(s, (struct sockaddr *)&server, sizeof(server)) < 0)
     {
-		perror("Bind()");
-		exit(3);
+	perror("Bind()");
+	exit(3);
     }
 
     /*
