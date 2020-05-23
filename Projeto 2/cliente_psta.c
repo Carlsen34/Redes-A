@@ -293,16 +293,39 @@ void receber(char comando[], char nome_remoto[], char nome_local[]) {
 }
 
 void encerrar() {
-    char comando_encerrar[] = "encerrar";
-    if (send(s, &comando_encerrar, (sizeof(comando_encerrar)), 0) < 0) {
-        perror("Send()");
-        exit(5);
-    }
-
     close(s);
     close(s_dados);
     printf("Finalizando o cliente ...\n");
     exit(0);
+}
+
+void listar_contatos() {
+    struct contatos {
+		char telefone[DIGITOSTELEFONE];
+        char status[10];
+    };
+
+	struct contatos contatos_receber;
+    int countContatos;
+   
+
+    if (recv(s, &countContatos, (sizeof(countContatos)), 0) < 0) {
+        perror("Recv()");
+       exit(6);
+    }
+
+    printf("countContatos: %i\n", countContatos);
+
+    while (countContatos) {
+        if (recv(s, &contatos_receber, (sizeof(contatos_receber)), 0) < 0) {
+            perror("Recv()");
+            exit(6);
+        }
+
+        printf("Telefone: %s - Status: %s\n", contatos_receber.telefone, contatos_receber.status);
+
+        countContatos--;
+    }
 }
 
 void listar(const char list_command[]) {
@@ -402,6 +425,27 @@ void conectar(char hostname[], char porta[]) {
     }
 }
 
+void adicionar_contato() {
+    char telefone[8];
+
+    create_socket();
+    printf("Insira o telefone do seu novo contato - 8 digitos: ");
+
+    fpurge(stdin);
+    fgets(telefone,sizeof(telefone),stdin);
+
+    cliente.porta = 0;
+    strcpy(cliente.telefone, telefone);
+
+    // enviar para o servidor a porta do socket de dados e do telefone
+    if (send(s, &cliente, (sizeof(cliente)), 0) < 0) {
+        perror("Send() 3");
+        exit(5);
+    }
+
+    printf("Novo contato salvo com sucesso!\n");
+};
+
 void criar_contato() {
     char telefone[8];
 
@@ -443,27 +487,37 @@ int main(int argc, char **argv){
             "4 - Sair da aplicacao\n\n"
             "Digite o numero da opcao: ");
 
-        memset(command, 0, sizeof(command));
+        // memset(comando, 0, sizeof(comando));
         fpurge(stdin);
         scanf("%i", &comando);
 
         switch (comando) {
         case 1:
-            printf("Comando 1 ...\n");
-            /* code */
+            if (send(s, &comando, (sizeof(comando)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+
+            adicionar_contato();
             break;
 
         case 2:
-            printf("Comando 2 ...\n");
-            /* code */
+            if (send(s, &comando, (sizeof(comando)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+            listar_contatos();
             break;
         
         case 3:
             printf("Comando 3 ...\n");
-            /* code */
             break;
 
         case 4:
+            if (send(s, &comando, (sizeof(comando)), 0) < 0) {
+                perror("Send()");
+                exit(5);
+            }
             encerrar();
             variavelLoop = false;
             break;

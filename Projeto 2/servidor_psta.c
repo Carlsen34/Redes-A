@@ -50,6 +50,7 @@ pthread_t thread_id[MaxArray];
 struct cliente contatos[MaxArray];
 unsigned short port;
 int countClients = 0;
+int countContatos = 0;
 int s_file, ns_file;
 
 char command[commandSizes];
@@ -244,7 +245,7 @@ void encerrar(int ns, int s, int thread_id) {
 	for (int i = 0; i < countClients; i++) {
 		if (contatos[i].thread_id == thread_id) {
 			contatos[i].porta = 0;
-			contatos[i].thread_id = 0;
+			contatos[i].thread_id = NULL;
 			printf("Thread[%i] esta na porta %i e possui o telefone %s\n", contatos[i].thread_id, contatos[i].porta, contatos[i].telefone);
 		}
 	};
@@ -314,6 +315,61 @@ void listar(int ns) {
 	close(s_file);
 }
 
+void listar_contatos(int ns, int thread_id) {
+	struct contatos {
+		char telefone[DIGITOSTELEFONE];
+		char status[10];
+	};
+
+	struct contatos contatos_enviar;
+
+	//manda a quantidade de contatos ha no servidor ...
+	int aux_countContatos = countContatos - 1;
+	if (send(ns, &aux_countContatos, (sizeof(aux_countContatos)), 0) < 0) {
+		perror("Send() 3");
+		exit(7);
+	}
+
+	for(int i = 0; i < countContatos; i++) {
+		printf("Telefone: %s - Porta: %d - Thread_id: %i\n", contatos[i].telefone, contatos[i].porta, contatos[i].thread_id);
+
+		if (contatos[i].thread_id != thread_id) {
+			strcpy(contatos_enviar.telefone, contatos[i].telefone);
+
+			if (contatos[i].porta != 0) {
+				strcpy(contatos_enviar.status, "Online");
+			} else {
+				strcpy(contatos_enviar.status, "Offline");
+			}
+
+			printf("Telefone: %s - Status: %s\n", contatos_enviar.telefone, contatos_enviar.status);
+
+			if (send(ns, &contatos_enviar, (sizeof(contatos_enviar)), 0) < 0) {
+				perror("Send() 3");
+				exit(7);
+			}
+		}
+	}
+};
+
+void adicionar_contato(int ns) {
+	struct cliente aux_cliente;
+	bool alteracao = false;
+
+	// recebe a as infomacoes do cliente como a porta e o telefone
+	if (recv(ns, &aux_cliente, sizeof(aux_cliente), 0) == -1)
+	{
+		perror("Recv()");
+		exit(6);
+	}
+
+	strcpy(contatos[countContatos].telefone, aux_cliente.telefone);
+	contatos[countContatos].porta = 0;
+	contatos[countContatos].thread_id = 11;
+	countContatos++;
+
+};
+
 void setup_contato(int ns, int thread_id) {
 
 	struct cliente aux_cliente;
@@ -327,7 +383,7 @@ void setup_contato(int ns, int thread_id) {
 	}
 
 	// verifica se nao possui nenhum contato com esse telefone
-	for (int i = 0; i < countClients; i++) {
+	for (int i = 0; i < countContatos; i++) {
 		if ((strcmp(contatos[i].telefone, aux_cliente.telefone)) == 0 && (contatos[i].porta == 0)) {
 			strcpy(contatos[thread_id].telefone, aux_cliente.telefone);
 			contatos[thread_id].porta = aux_cliente.porta;
@@ -341,7 +397,8 @@ void setup_contato(int ns, int thread_id) {
 	if (!alteracao) {
 		strcpy(contatos[thread_id].telefone, aux_cliente.telefone);
 		contatos[thread_id].porta = aux_cliente.porta;
-		contatos[thread_id].thread_id = thread_id; 
+		contatos[thread_id].thread_id = thread_id;
+		countContatos++;
 	}
 
 	printf("Thread[%i] esta na porta %i e possui o telefone %s\n", thread_id, aux_cliente.porta, aux_cliente.telefone);
@@ -351,42 +408,38 @@ void *recebe_comando(void* parameters){
 	struct args args = *((struct args*) parameters);
 	setup_contato(args.ns, args.thread_id);
     bool variavelLoop = false;
+	int comando;
 
     do {
         /* Recebe uma mensagem do cliente atraves do novo socket conectado */
-		memset(&command, 0, sizeof(command));
-		if (recv(args.ns, &command, sizeof(command), 0) == -1)
+		// memset(&comando, 0, sizeof(comando));
+		if (recv(args.ns, &comando, sizeof(comando), 0) == -1)
         {
             perror("Recv()");
             exit(6);
         }
 
-		char * token = strtok(command, " ");
-		char value[3][200] ;
-		int i = 0;
+		switch (comando) {
+        case 1:
+            adicionar_contato(args.ns);
+            break;
 
+        case 2:
+            listar_contatos(args.ns, args.thread_id);
+            break;
+        
+        case 3:
+            printf("Comando 3 ...\n");
+            break;
 
-		while( token != NULL ) {
-            strcpy(value[i],token);
-			// printf("Token[%i] = %s\n", i, token);
-            token = strtok(NULL, " ");
-            i++;
-		}
+        case 4:
+			encerrar(args.ns, args.s, args.thread_id);
+            variavelLoop = false;
+            break;
 
-        if ((strcmp(value[0], "listar")) == 0) {
-            listar(args.ns);
-        }
-
-		if ((strcmp(value[0], "encerrar")) == 0) {
-            encerrar(args.ns, args.s, args.thread_id);
-        }
-
-		if ((strcmp(value[0], "enviar")) == 0) {
-            enviar(args.ns, args.s);
-        }
-
-		if ((strcmp(value[0], "receber")) == 0) {
-            receber(args.ns, args.s);
+        default:
+            printf("Comando invalido ... Por favor insira um novo comando\n");
+            break;
         }
 
     } while(!variavelLoop);
@@ -468,6 +521,12 @@ int main(int argc, char **argv){
 		parameters.s = s;
 		parameters.thread_id = countClients;
 
-		create_thread
+		if (pthread_create(&thread_id[countClients], NULL, recebe_comando, (void* )&parameters)) {
+            printf("ERRO: impossivel criar uma thread\n");
+            exit(-1);
+        }
+		printf("Thread[%i] criada\n", countClients);
+		countClients++;
+        // pthread_detach(thread_id[countClients]);
 	}
 }
