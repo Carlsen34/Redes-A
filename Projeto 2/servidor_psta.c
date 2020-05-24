@@ -31,7 +31,8 @@ Kaíque Ferreira Fávero 15118698
 #define commandSizes 200
 #define MaxArray 10
 #define FILESIZE 4096
-#define DIGITOSTELEFONE 8
+#define DIGITOSTELEFONE 9
+#define STRINGSIZE 90
 
 struct args{
 	int ns;
@@ -41,6 +42,7 @@ struct args{
 
 struct cliente {
 	char telefone[DIGITOSTELEFONE];
+	char ip[STRINGSIZE];
 	int porta;
 	int thread_id;
 };
@@ -316,38 +318,38 @@ void listar(int ns) {
 }
 
 void listar_contatos(int ns, int thread_id) {
-	struct contatos {
-		char telefone[DIGITOSTELEFONE];
-		char status[10];
-	};
+	char telefone[DIGITOSTELEFONE];
+	char status[10];
+	int countContatosCliente = 0;
 
-	struct contatos contatos_enviar;
-
-	//manda a quantidade de contatos ha no servidor ...
-	int aux_countContatos = countContatos - 1;
-	if (send(ns, &aux_countContatos, (sizeof(aux_countContatos)), 0) < 0) {
-		perror("Send() 3");
-		exit(7);
+	if (recv(ns, &countContatosCliente, sizeof(countContatosCliente), 0) == -1) {
+		perror("Recv()");
+		exit(6);
 	}
 
-	for(int i = 0; i < countContatos; i++) {
-		printf("Telefone: %s - Porta: %d - Thread_id: %i\n", contatos[i].telefone, contatos[i].porta, contatos[i].thread_id);
+	for(int i = 0; i < countContatosCliente; i++) {
 
-		if (contatos[i].thread_id != thread_id) {
-			strcpy(contatos_enviar.telefone, contatos[i].telefone);
+		if (recv(ns, &telefone, sizeof(telefone), 0) == -1) {
+			perror("Recv()");
+			exit(6);
+		}
 
-			if (contatos[i].porta != 0) {
-				strcpy(contatos_enviar.status, "Online");
+		printf("%i) Telefone: %s\n", i, telefone);
+
+		int j = 0; 
+		do {
+			if ((strcmp(telefone, contatos[j].telefone)) == 0) {	
+				strcpy(status, "Online");
+				j++;
 			} else {
-				strcpy(contatos_enviar.status, "Offline");
+				strcpy(status, "Offline");
+				j++;
 			}
+		} while(j < countContatos && (strcmp(status, "Online") != 0));
 
-			printf("Telefone: %s - Status: %s\n", contatos_enviar.telefone, contatos_enviar.status);
-
-			if (send(ns, &contatos_enviar, (sizeof(contatos_enviar)), 0) < 0) {
-				perror("Send() 3");
-				exit(7);
-			}
+		if (send(ns, &status, (sizeof(status)), 0) < 0) {
+			perror("Send() 3");
+			exit(7);
 		}
 	}
 };
@@ -364,6 +366,7 @@ void adicionar_contato(int ns) {
 	}
 
 	strcpy(contatos[countContatos].telefone, aux_cliente.telefone);
+	strcpy(contatos[countContatos].ip, "0");
 	contatos[countContatos].porta = 0;
 	contatos[countContatos].thread_id = 11;
 	countContatos++;
@@ -386,6 +389,7 @@ void setup_contato(int ns, int thread_id) {
 	for (int i = 0; i < countContatos; i++) {
 		if ((strcmp(contatos[i].telefone, aux_cliente.telefone)) == 0 && (contatos[i].porta == 0)) {
 			strcpy(contatos[thread_id].telefone, aux_cliente.telefone);
+			strcpy(contatos[thread_id].ip, aux_cliente.ip);
 			contatos[thread_id].porta = aux_cliente.porta;
 			contatos[thread_id].thread_id = thread_id;
 			alteracao = true;
@@ -396,12 +400,13 @@ void setup_contato(int ns, int thread_id) {
 	esse telefone tem que ser criado um novo contato */
 	if (!alteracao) {
 		strcpy(contatos[thread_id].telefone, aux_cliente.telefone);
+		strcpy(contatos[thread_id].ip, aux_cliente.ip);
 		contatos[thread_id].porta = aux_cliente.porta;
 		contatos[thread_id].thread_id = thread_id;
 		countContatos++;
 	}
 
-	printf("Thread[%i] esta na porta %i e possui o telefone %s\n", thread_id, aux_cliente.porta, aux_cliente.telefone);
+	printf("Thread[%i] esta na endereco %s:%i e possui o telefone %s\n", thread_id, aux_cliente.ip, aux_cliente.porta, aux_cliente.telefone);
 };
 
 void *recebe_comando(void* parameters){

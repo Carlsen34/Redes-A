@@ -25,16 +25,24 @@ Kaíque Ferreira Fávero 15118698
  
 #define COMMAND 200
 #define FILESIZE 4096
-#define DIGITOSTELEFONE 8
+#define DIGITOSTELEFONE 9
+#define STRINGSIZE 90
 
 struct dados_cliente {
 	char telefone[DIGITOSTELEFONE];
+    char ip[STRINGSIZE];
 	int porta;
+};
+
+struct agenda {
+    char conteudo[DIGITOSTELEFONE]; 
+    struct agenda *prox;
 };
 
 int s;
 
 //variaveis para a criacao do socket de dados
+char ip[STRINGSIZE]; // buffer temporario para string
 int s_dados, ns_dados, port_dados;
 struct sockaddr_in client_dados; 
 struct sockaddr_in server_dados; 
@@ -44,7 +52,7 @@ int namelen_dados;
 char command[COMMAND];
 
 long file_size(char *name) {
-    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
+    FILE *fp = fopen(name, "a+"); //must be binary read to get bytes
 
     long size;
     if(fp) {
@@ -299,33 +307,83 @@ void encerrar() {
     exit(0);
 }
 
-void listar_contatos() {
-    struct contatos {
-		char telefone[DIGITOSTELEFONE];
-        char status[10];
-    };
+void insere_lista(char telefone[], struct agenda *a) {
+    struct agenda *atual, *proximo;
+    struct agenda *novo;
 
-	struct contatos contatos_receber;
-    int countContatos;
-   
+    atual = a;
+    proximo = a->prox;
 
-    if (recv(s, &countContatos, (sizeof(countContatos)), 0) < 0) {
-        perror("Recv()");
-       exit(6);
+    novo = malloc (sizeof (struct agenda));
+    strcpy(novo->conteudo, telefone);
+    printf("novo->conteudo: %s\n", novo->conteudo);
+
+    while (atual->prox != NULL) {
+        atual = proximo;
+        proximo = atual->prox;
     }
 
-    printf("countContatos: %i\n", countContatos);
+    if (proximo == NULL) {
+        novo->prox = atual->prox;
+        atual->prox = novo;
+    }
+};
 
-    while (countContatos) {
-        if (recv(s, &contatos_receber, (sizeof(contatos_receber)), 0) < 0) {
-            perror("Recv()");
-            exit(6);
+void listar_contatos() {
+    FILE *fp;
+    char nomeArquivo[20], file_name[20], line[10], status[10];
+    int countTelefone = 0;
+
+    struct agenda *contato_agenda;
+    contato_agenda = malloc (sizeof (struct agenda));
+    contato_agenda->prox = NULL;
+
+    strcpy(nomeArquivo, cliente.telefone);
+    strcat(nomeArquivo, ".txt");
+    snprintf(file_name, (strlen(nomeArquivo) + 1), "%s", nomeArquivo);// pega o nome do arquivo de um uma variavel
+    long int size = file_size(file_name);
+
+    if (size == 0) {
+        printf("Nao possui contatos cadastrados ...\n");
+    } else {
+        fp = fopen(file_name, "r");// abre o arquivo
+        printf("TESTEETEETE ...\n");
+        while(fgets(line,1024,fp)) {
+            printf("%s\n",line);
+            insere_lista(line, contato_agenda);
+            countTelefone++;
+        };
+
+        fclose(fp);
+
+        if (send(s, &countTelefone, (sizeof(countTelefone)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
         }
 
-        printf("Telefone: %s - Status: %s\n", contatos_receber.telefone, contatos_receber.status);
+        struct agenda *print;
+        print = contato_agenda->prox;
+        for(int i = 0; i < countTelefone; i++) {
 
-        countContatos--;
+            if (send(s, &print->conteudo, (sizeof(print->conteudo)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+
+            if (recv(s, &status, (sizeof(status)), 0) < 0) {
+                perror("Recv()");
+                exit(6);
+            }
+
+            printf("%i) %s - %s\n", i+1, print->conteudo, status);
+
+            print = print->prox;
+        }
+
+        free(contato_agenda);
+        free(print);
     }
+
 }
 
 void listar(const char list_command[]) {
@@ -387,8 +445,8 @@ void conectar(char hostname[], char porta[]) {
     struct hostent *hostnm;
     struct sockaddr_in server;
 
-    printf("hostname: %s\n", hostname);
-    printf("porta: %s\n", porta);
+    // printf("hostname: %s\n", hostname);
+    // printf("porta: %s\n", porta);
 
     /*
      * Obtendo o endereco IP do servidor
@@ -408,6 +466,9 @@ void conectar(char hostname[], char porta[]) {
     server.sin_port        = htons(port);
     server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
 
+    inet_ntop(AF_INET,&server.sin_addr,ip,STRINGSIZE);
+    printf("server.sin_addr.s_addr: %s\n", ip);
+
     /*
      * Cria um socket TCP (stream)
      */
@@ -426,7 +487,9 @@ void conectar(char hostname[], char porta[]) {
 }
 
 void adicionar_contato() {
+    FILE *fp;
     char telefone[8];
+    char nomeArquivo[20], file_name[20];
 
     create_socket();
     printf("Insira o telefone do seu novo contato - 8 digitos: ");
@@ -434,20 +497,19 @@ void adicionar_contato() {
     fpurge(stdin);
     fgets(telefone,sizeof(telefone),stdin);
 
-    cliente.porta = 0;
-    strcpy(cliente.telefone, telefone);
+    strcpy(nomeArquivo, cliente.telefone);
+    strcat(nomeArquivo, ".txt");
+    snprintf(file_name, (strlen(nomeArquivo) + 1), "%s", nomeArquivo);// pega o nome do arquivo de um uma variavel
+    fp = fopen(file_name, "a");// abre o arquivo
 
-    // enviar para o servidor a porta do socket de dados e do telefone
-    if (send(s, &cliente, (sizeof(cliente)), 0) < 0) {
-        perror("Send() 3");
-        exit(5);
-    }
+    fprintf(fp, "%s", telefone);
+	fclose(fp);
 
     printf("Novo contato salvo com sucesso!\n");
 };
 
 void criar_contato() {
-    char telefone[8];
+    char telefone[DIGITOSTELEFONE];
 
     create_socket();
     printf("Insira o seu telefone - 8 digitos: ");
@@ -457,9 +519,11 @@ void criar_contato() {
 
     cliente.porta = port_dados;
     strcpy(cliente.telefone, telefone);
+    strcpy(cliente.ip, ip);
 
     printf("PORTA: %d\n", cliente.porta);
 	printf("TELEFONE: %s\n", cliente.telefone);
+	printf("IP: %s\n", cliente.ip);
 
     // enviar para o servidor a porta do socket de dados e do telefone
     if (send(s, &cliente, (sizeof(cliente)), 0) < 0) {
@@ -493,10 +557,10 @@ int main(int argc, char **argv){
 
         switch (comando) {
         case 1:
-            if (send(s, &comando, (sizeof(comando)), 0) < 0) {
-                perror("Send() 1");
-                exit(5);
-            }
+            // if (send(s, &comando, (sizeof(comando)), 0) < 0) {
+            //     perror("Send() 1");
+            //     exit(5);
+            // }
 
             adicionar_contato();
             break;
