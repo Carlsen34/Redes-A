@@ -447,7 +447,7 @@ void chat(int ns, int thread_id) {
 
 	struct contato aux_contato;
 	char telefone[DIGITOSTELEFONE];
-	char status[10];
+	char status[10] = "";
 	int i = 0;
 
 	if (recv(ns, &telefone, sizeof(telefone), 0) == -1) {
@@ -457,8 +457,10 @@ void chat(int ns, int thread_id) {
 		printf("Texto ... TEL: %s\n", telefone);
 
 	do {
+		printf("%i - status: %s", i, status);
 		printf("DoWhile ... TEL: %s\n", contatos[i].telefone);
 		if ((strcmp(telefone, contatos[i].telefone)) == 0) {	
+			printf("ENTROU AQUI -> %i - status: %s", i, status);
 			strcpy(status, "stop");
 
 			strcpy(aux_contato.telefone, contatos[i].telefone);
@@ -476,7 +478,7 @@ void chat(int ns, int thread_id) {
 			i++;
 		}
 		i++;
-	} while(i < countContatos && (strcmp(status, "stop") != 0));
+	} while(i < MaxArray && (strcmp(status, "stop") != 0));
 
 	if((strcmp(status, "stop") != 0)) {
 		//default
@@ -518,6 +520,7 @@ void *recebe_comando(void* parameters){
         
         case 3:
 			chat(args.ns, args.thread_id);
+			printf("VOLTOU DO CHAT ...\n");
             break;
 
         case 4:

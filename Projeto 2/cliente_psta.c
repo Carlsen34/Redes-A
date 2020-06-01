@@ -41,8 +41,14 @@ struct agenda {
     struct agenda *prox;
 };
 
+struct mensagem_dados {
+    char telefone_remetente[DIGITOSTELEFONE];
+    char conteudo[TAMANHOMENSAGEM];
+    char type[10];
+};
+
 int s_server;
-int s_cliente , ns_cliente;
+int s_cliente , ns_cliente = 0;
 
 //variaveis para a criacao do socket de dados
 char ip[STRINGSIZE]; // buffer temporario para string
@@ -68,7 +74,7 @@ long file_size(char *name) {
 }
 
 void *thread_server() {
-    char tipo_mensagem[10];
+    struct mensagem_dados tipo_mensagem;
     while(true) {
         /*
         * Aceita uma conexao e cria um novo socket atraves do qual
@@ -85,12 +91,15 @@ void *thread_server() {
             exit(6);
         }
 
-        if ((strcmp(tipo_mensagem, "mensagem") == 0)) {
-            printf("Mensagem Recebida ...");
+        if ((strcmp(tipo_mensagem.type, "mensagem") == 0)) {
+            printf("Mensagem Recebida ...\n\n");
+
+            printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
+            printf("Mensagem: %s\n", tipo_mensagem.conteudo);
         }
         
-        if ((strcmp(tipo_mensagem, "arquivo") == 0)){
-            printf("Arquivo Recebido ...");
+        if ((strcmp(tipo_mensagem.type, "arquivo") == 0)){
+            printf("Arquivo Recebido ...\n\n");
         }
 	}
 }
@@ -550,7 +559,6 @@ void enviar_mensagem() {
     struct dados_cliente dados;
     char mensagem[TAMANHOMENSAGEM];
     char porta[32];
-    char tipo_mensagem[20] = "mensagem";
 
     printf("Digite o telefone para enviar a mensagem:\n");
     fpurge(stdin);
@@ -577,14 +585,21 @@ void enviar_mensagem() {
         printf("Digite a mesnagem:\n");
         fpurge(stdin);
         fgets(mensagem,sizeof(mensagem),stdin);
-        sprintf(porta, "%i", dados.porta);
 
+        struct mensagem_dados mensagem_dados;
+        strcpy(mensagem_dados.type, "mensagem");
+        strcpy(mensagem_dados.telefone_remetente, cliente.telefone);
+        strcpy(mensagem_dados.conteudo, mensagem);
+
+        sprintf(porta, "%i", dados.porta);
         conectar(dados.ip, porta, &s_cliente);
 
-        if (send(s_cliente, &tipo_mensagem, (sizeof(tipo_mensagem)), 0) < 0) {
+        if (send(s_cliente, &mensagem_dados, (sizeof(mensagem_dados)), 0) < 0) {
             perror("Send() 1");
             exit(5);
         }
+
+        close(s_cliente);
 
         printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
     }
