@@ -365,60 +365,6 @@ void listar_contatos() {
 
 }
 
-void listar(const char list_command[]) {
-    char comando_listar[COMMAND], nomeFile[256];
-    DIR *dir;
-    struct dirent *dp;
-    int count = 0;
-
-    //envia o comando "listar"
-    strcpy(comando_listar, list_command);
-    if (send(s_server, &comando_listar, (sizeof(comando_listar)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    printf("port: %i\n", port_dados);
-    // enviar para o servidor a porta q ocorerra a comunicacao com o servidor
-    if (send(s_server, &port_dados, (sizeof(port_dados)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    while(ns_dados == 0)
-    {
-	  /*
-	  * Aceita uma conexao e cria um novo socket atraves do qual
-	  * ocorrera a comunicacao com o cliente.
-	  */
-	  namelen_dados = sizeof(client_dados);
-	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
-		perror("Accept()");
-		exit(5);
-	  }
-	}
-
-    // Recebe a lista de arquivos que estao no servidor...
-    do {
-        if (recv(ns_dados, &nomeFile, (sizeof(nomeFile)), 0) < 0)
-        {
-            perror("Recv()");
-            exit(6);
-        }
-
-        if((strcmp(nomeFile, "stop")) != 0) {
-            printf("> %s\n", nomeFile);
-        }
-
-    }while((strcmp(nomeFile, "stop")) != 0);
-
-    //close(s_dados);
-    close(ns_dados);
-    ns_dados = 0;
-}
-
 void conectar(char hostname[], char porta[], int *s) {
     unsigned short port;
     struct hostent *hostnm;
@@ -681,6 +627,41 @@ void adicionar_contato() {
     printf("Novo contato salvo com sucesso!\n");
 };
 
+void criar_grupo() {
+    FILE *fp;
+    char telefone[DIGITOSTELEFONE];
+    char nameFolder[200];
+    char nome_grupo[20], file_name[200];
+    int comando, qntdContatos;
+    bool variavelLoop = false;
+
+    printf("Digite o nome do grupo: ");
+    fpurge(stdin);
+    fgets(nome_grupo,sizeof(nome_grupo),stdin);
+    strtok(nome_grupo, "\n");
+
+    printf("Digite quantos contatos tera o grupo: ");
+    scanf("%i", &qntdContatos);
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, nome_grupo);
+    strcat(nameFolder, ".txt");
+    snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+    fp = fopen(file_name, "a");// abre o arquivo
+
+    for (int i = 0; i < qntdContatos; i++) {
+        printf("Digite o %i telefone do grupo: ", i);
+        fpurge(stdin);
+        fgets(telefone,sizeof(telefone),stdin);
+        strtok(telefone, "\n");
+        fprintf(fp, "%s\n", telefone);
+        printf("\n");
+    }
+
+	fclose(fp);
+}
+
 void menu_chat_tipo_mensagem() {
     bool variavelLoop = false;
     int comando;
@@ -763,6 +744,43 @@ void menu_chat() {
 
 }
 
+void menu_adicionar_contato() {
+    bool variavelLoop = false;
+    int comando;
+
+    do {
+        printf("MENU CONTATOS - Criar novo contato:\n"
+            "1 - Individual\n"
+            "2 - Grupo\n"
+            "3 - Sair do Menu Contatos\n\n"
+            "Digite o numero da opcao: ");
+
+        fpurge(stdin);
+        scanf("%i", &comando);
+
+        switch (comando) {
+        case 1:
+            adicionar_contato();
+            break;
+
+        case 2:
+            printf("GRUPO ...\n");
+            criar_grupo();
+            break;
+
+        case 3:
+            variavelLoop = true;
+            break;
+
+        default:
+            printf("Comando invalido ... Por favor insira um novo comando\n");
+            break;
+        }
+
+    } while(!variavelLoop);
+
+}
+
 void criar_contato() {
     char telefone[DIGITOSTELEFONE];
 
@@ -811,7 +829,7 @@ int main(int argc, char **argv){
 
         switch (comando) {
         case 1:
-            adicionar_contato();
+            menu_adicionar_contato();
             break;
 
         case 2:
