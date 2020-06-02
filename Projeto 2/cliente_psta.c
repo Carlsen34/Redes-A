@@ -45,7 +45,9 @@ struct mensagem_dados {
     char telefone_remetente[DIGITOSTELEFONE];
     char conteudo[TAMANHOMENSAGEM];
     char type[10];
+    long tamanho;
 };
+
 
 int s_server;
 int s_cliente , ns_cliente = 0;
@@ -59,10 +61,13 @@ struct sockaddr_in server_dados;
 struct dados_cliente cliente;
 int namelen_dados, namelen_mensagem;
 
+char path[106], nome_pasta[106];
+struct stat st = {0};
+
 char command[COMMAND];
 
 long file_size(char *name) {
-    FILE *fp = fopen(name, "a+"); //must be binary read to get bytes
+    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
 
     long size;
     if(fp) {
@@ -71,6 +76,132 @@ long file_size(char *name) {
         fclose(fp);
     }
     return size;
+}
+
+void criar_pasta_dados() {
+    strcpy(nome_pasta, cliente.telefone);
+    strcat(nome_pasta, "_dados");
+    strcat(path, "/");
+    strcat(path, nome_pasta);
+
+    // cria o diretorio de dados
+    if (stat(path, &st) == -1) {
+        mkdir(nome_pasta, 0777);
+    }
+}
+
+void enviar(struct mensagem_dados arquivo) {
+    FILE *fp;
+    char str_aux[COMMAND];
+    char nameFolder[100];
+    char file_name[200];
+    int i, len, accum;
+    long sizeFile = arquivo.tamanho;
+    char line[FILESIZE];
+
+    // char path[106], nome_pasta[106];
+    // struct stat st = {0};
+
+    // strcpy(nome_pasta, cliente.telefone);
+    // strcat(nome_pasta, "_dados");
+    // strcat(path, "/");
+    // strcat(path, nome_pasta);
+
+    // // cria o diretorio de dados
+    // if (stat(path, &st) == -1) {
+    //     mkdir(nome_pasta, 0777);
+    // }
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, arquivo.conteudo);
+    printf("nome_pasta: %s\n\n", nameFolder);
+
+
+    // le o nome do arquivo
+    snprintf(file_name, strlen(nameFolder)+1, "%s", nameFolder);
+    fp = fopen(file_name, "rb");
+    printf("file_name: %s\n", file_name);
+
+
+    if(fp) {
+        int sent_bytes = 0;
+        while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
+            printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
+            sizeFile -= sent_bytes;
+
+            if (send(s_cliente, &line, sent_bytes, 0) < 0) {
+                perror("Send()");
+                exit(5);
+            }
+            memset(line, 0, sizeof(line));
+        }
+        printf("Finalizou o processo de envio ... \n");
+    }
+
+    fclose(fp);
+    // close(ns);
+    printf("Fechou tudo!\n");
+}
+
+void receber_arquivo(struct mensagem_dados arquivo) {
+    FILE *fp;
+    char str_aux[COMMAND];
+    char nameFolder[100];
+    char file_name[200];
+    int i, len, accum;
+    long sizeFile = arquivo.tamanho;
+    char line[FILESIZE];
+
+    // char path[106], nome_pasta[106];
+    // struct stat st = {0};
+
+    // strcpy(nome_pasta, cliente.telefone);
+    // strcat(nome_pasta, "_dados");
+    // strcat(path, "/");
+    // strcat(path, nome_pasta);
+
+    // // cria o diretorio de dados
+    // if (stat(path, &st) == -1) {
+    //     mkdir(nome_pasta, 0777);
+    // }
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, arquivo.conteudo);
+    printf("nome_pasta: %s\n\n", nameFolder);
+
+    // printf("sizeFile: %li\n", sizeFile);
+
+    // le o nome do arquivo
+    // printf("nome_local: %s\n", nome_local);
+    snprintf(file_name, strlen(nameFolder)+1, "%s", nameFolder);
+    printf("file_name: %s\n", file_name);
+    // printf("(sizeof(line)): %lu\n", (sizeof(line)));
+    fp = fopen(file_name, "wb");
+
+    if(fp) {
+		accum = 0; // quantidade de dados acumuladods
+		int sent_bytes = 0; // quantidade de dados recebidos
+		while(accum < sizeFile) {
+			if ((sent_bytes = recv(ns_cliente, &line, (sizeof(line)), 0)) < 0) {
+				perror("Send() 4");
+				exit(5);
+			}
+
+            if(sent_bytes > 0) {
+                printf("sent_bytes = %i\n", sent_bytes);
+            }
+
+			accum += sent_bytes;//track size of growing file
+
+			fwrite(line, sent_bytes, 1, fp);
+		}
+	}
+
+    fclose(fp);
+    close(ns_cliente);
+    printf("Fechou tudo!\n");
 }
 
 void *thread_server() {
@@ -100,238 +231,18 @@ void *thread_server() {
         
         if ((strcmp(tipo_mensagem.type, "arquivo") == 0)){
             printf("Arquivo Recebido ...\n\n");
+            printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
+            printf("Conteudo: %s\n", tipo_mensagem.conteudo);
+            printf("Tamanho: %li\n\n", tipo_mensagem.tamanho);
+            receber_arquivo(tipo_mensagem);
         }
 	}
-}
-
-void create_socket() {
-    // int s_dados;                     /* Socket para aceitar conexoes       */
-	// int *ns_dados = 0;                /* Socket conectado ao cliente        */
-    unsigned short port;
-
-    /*
-     * O primeiro argumento (argv[1]) e a porta
-     * onde o servidor aguardara por conexoes
-     */
-
-    port = (unsigned short) 0;
-
-    /*
-     * Cria um socket TCP (stream) para aguardar conexoes
-     */
-    if ((s_dados = socket(PF_INET, SOCK_STREAM, 0)) < 0)
-    {
-	  perror("Socket()");
-	  exit(2);
-    }
-
-   /*
-    * Define a qual endereco IP e porta o servidor estara ligado.
-    * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
-    * os enderecos IP
-    */
-    server_dados.sin_family = AF_INET;   
-    server_dados.sin_port   = htons(port);       
-    server_dados.sin_addr.s_addr = INADDR_ANY;
-
-    /*
-     * Liga o servidor a porta definida anteriormente.
-     */
-    if (bind(s_dados, (struct sockaddr *)&server_dados, sizeof(server_dados)) < 0)
-    {
-		perror("Bind() aqui ... ");
-		exit(3);
-    }
-
-    /* Consulta qual porta foi utilizada. */
-    namelen_dados = sizeof(server_dados);
-    if (getsockname(s_dados, (struct sockaddr *) &server_dados, (socklen_t *) &namelen_dados) < 0) {
-        perror("getsockname()");
-        exit(1);
-    }
-
-	/* Imprime qual porta E IP foram utilizados. */
-    port_dados = ntohs(server_dados.sin_port);
-    printf("\nPorta utilizada (enviar): %d", ntohs(server_dados.sin_port));
-    printf("\nIP utilizado (enviar): %d\n", ntohs(server_dados.sin_addr.s_addr));
-
-    /*
-     * Prepara o socket para aguardar por conexoes e
-     * cria uma fila de conexoes pendentes.
-     */
-    if (listen(s_dados, 1) != 0)
-    {
-	  perror("Listen()");
-	  exit(4);
-    }
-
-    if (pthread_create(&thread_ServerCliente, NULL, thread_server, NULL)) {
-        printf("ERRO: impossivel criar uma thread\n");
-        exit(-1);
-    }
-}
-
-void enviar(char comando[], char nome_local[], char nome_remoto[]) {
-    FILE *fp;
-    char str_aux[COMMAND];
-    char bufsize[100];
-    char file_name[strlen(nome_local)+1];
-    int i, len, accum;
-    long sizeFile = file_size(nome_local);
-    char line[FILESIZE];
-
-    strcpy(str_aux, comando);
-    // enviar o comando enviar ...
-    if (send(s_server, &str_aux, (sizeof(str_aux)), 0) < 0) {
-        perror("Send() 1");
-        exit(5);
-    }
-
-    // envia o nome que o arquivo sera salvo
-    strcpy(str_aux, nome_remoto);
-    if (send(s_server, &str_aux, (sizeof(str_aux)), 0) < 0) {
-        perror("Send() 2");
-        exit(5);
-    }
-
-    //enviar a porta onde sera conectado o servidor ...
-    if (send(s_server, &port_dados, (sizeof(port_dados)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    while(ns_dados == 0)
-    {
-	  /*
-	  * Aceita uma conexao e cria um novo socket atraves do qual
-	  * ocorrera a comunicacao com o cliente.
-	  */
-	  namelen_dados = sizeof(client_dados);
-	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
-		perror("Accept()");
-		exit(5);
-	  }
-	}
-
-    // le o nome do arquivo
-    snprintf(file_name, strlen(nome_local)+1, "%s", nome_local);
-    fp = fopen(file_name, "rb");
-    // printf("file_name: %s\n", file_name);
-
-    // enviar qual o tamanho do arquivo
-    if (send(ns_dados, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
-        perror("Send() 3");
-        exit(5);
-    }
-
-    if(fp) {
-        int sent_bytes = 0;
-        while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
-            // printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
-            sizeFile -= sent_bytes;
-
-            if (send(ns_dados, &line, sent_bytes, 0) < 0) {
-                perror("Send()");
-                exit(5);
-            }
-            memset(line, 0, sizeof(line));
-        }
-        printf("Finalizou o processo de envio ... \n");
-    }
-
-    fclose(fp);
-    close(ns_dados);
-    ns_dados = 0;
-    printf("Fechou tudo!\n");
-}
-
-void receber(char comando[], char nome_remoto[], char nome_local[]) {
-    FILE *fp;
-    char str_aux[COMMAND];
-    char bufsize[100];
-    char file_name[200];
-    int i, len, accum;
-    long sizeFile = 0;
-    char line[FILESIZE];
-
-    strcpy(str_aux, comando);
-    // enviar o comando receber ...
-    if (send(s_server, &str_aux, (sizeof(str_aux)), 0) < 0) {
-        perror("Send() 1");
-        exit(5);
-    }
-
-    // envia o nome que o arquivo sera salvo
-    strcpy(str_aux, nome_remoto);
-    printf("str_aux: %s\n", str_aux);
-    if (send(s_server, &str_aux, (sizeof(str_aux)), 0) < 0) {
-        perror("Send() 2");
-        exit(5);
-    }
-
-    //enviar a porta para o servidor se conectar
-    printf("port: %i\n", port_dados);
-    if (send(s_server, &port_dados, (sizeof(port_dados)), 0) < 0)
-    {
-        perror("Send()");
-        exit(5);
-    }
-
-    while(ns_dados == 0)
-    {
-	  /*
-	  * Aceita uma conexao e cria um novo socket atraves do qual
-	  * ocorrera a comunicacao com o cliente.
-	  */
-	  namelen_dados = sizeof(client_dados);
-	  if ((ns_dados = accept(s_dados, (struct sockaddr *) &client_dados, (socklen_t *) &namelen_dados)) == -1) {
-		perror("Accept()");
-		exit(5);
-	  }
-	}
-    
-    // recebe qual o tamanho do arquivo
-    if (recv(ns_dados, &sizeFile, (sizeof(sizeFile)), 0) < 0) {
-        perror("Send() 3");
-        exit(5);
-    }
-    // printf("sizeFile: %li\n", sizeFile);
-
-    // le o nome do arquivo
-    // printf("nome_local: %s\n", nome_local);
-    snprintf(file_name, strlen(nome_local), "%s", nome_local);
-    // printf("file_name: %s\n", file_name);
-    // printf("(sizeof(line)): %lu\n", (sizeof(line)));
-    fp = fopen(file_name, "wb");
-
-    if(fp) {
-		accum = 0; // quantidade de dados acumuladods
-		int sent_bytes = 0; // quantidade de dados recebidos
-		while(accum < sizeFile) {
-			if ((sent_bytes = recv(ns_dados, &line, (sizeof(line)), 0)) < 0) {
-				perror("Send() 4");
-				exit(5);
-			}
-
-            if(sent_bytes > 0) {
-                printf("sent_bytes = %i\n", sent_bytes);
-            }
-
-			accum += sent_bytes;//track size of growing file
-
-			fwrite(line, sent_bytes, 1, fp);
-		}
-	}
-
-    fclose(fp);
-    close(ns_dados);
-    ns_dados = 0;
-    printf("Fechou tudo!\n");
 }
 
 void encerrar() {
+    pthread_cancel(thread_ServerCliente);
     close(ns_cliente);
+    close(ns_dados);
     close(s_dados);
     close(s_server);
     printf("Finalizando o cliente ...\n");
@@ -605,6 +516,148 @@ void enviar_mensagem() {
     }
 }
 
+void enviar_arquivo() {
+    char telefone_arquivo[DIGITOSTELEFONE];
+    struct dados_cliente dados;
+    char file_name[200];
+    char arquivo[100];
+    char path[106], nome_pasta[106];
+    struct stat st = {0};
+    char porta[32];
+
+    printf("Digite o telefone para enviar o arquivo:\n");
+    fpurge(stdin);
+    fgets(telefone_arquivo,sizeof(telefone_arquivo),stdin);
+    strtok(telefone_arquivo, "\n");
+
+    if (send(s_server, &telefone_arquivo, (sizeof(telefone_arquivo)), 0) < 0) {
+        perror("Send() 1");
+        exit(5);
+    }
+
+    if (recv(s_server, &dados, (sizeof(dados)), 0) < 0) {
+        perror("Recv()");
+        exit(6);
+    }
+
+    printf("Telefone: %s\n", dados.telefone);
+    printf("Porta: %i\n", dados.porta);
+    printf("IP: %s\n", dados.ip);
+
+    if (dados.porta == 0) {
+        printf("Contato offline ... Tente mais tarde\n");
+    } else {
+
+        strcpy(nome_pasta, cliente.telefone);
+        strcat(nome_pasta, "_dados");
+        strcat(path, "/");
+        strcat(path, nome_pasta);
+
+        // cria o diretorio de dados
+        if (stat(path, &st) == -1) {
+            mkdir(nome_pasta, 0777);
+        }
+
+        printf("Digite o nome do arquivo:\n");
+        fpurge(stdin);
+        fgets(arquivo,sizeof(arquivo),stdin);
+        strtok(arquivo, "\n");
+
+        strcat(nome_pasta, "/");
+        strcat(nome_pasta, arquivo);
+        printf("nome_pasta: %s\n\n", nome_pasta);
+        snprintf(file_name, strlen(nome_pasta)+1, "%s", nome_pasta);
+        long size_file = file_size(file_name);
+	    printf("size_file: %li\n", size_file);
+
+        struct mensagem_dados arquivo_dados;
+        strcpy(arquivo_dados.type, "arquivo");
+        strcpy(arquivo_dados.telefone_remetente, cliente.telefone);
+        strcpy(arquivo_dados.conteudo, arquivo);
+        arquivo_dados.tamanho = size_file;
+
+        sprintf(porta, "%i", dados.porta);
+        conectar(dados.ip, porta, &s_cliente);
+
+        if (send(s_cliente, &arquivo_dados, (sizeof(arquivo_dados)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
+        }
+
+        enviar(arquivo_dados);
+        close(s_cliente);
+
+        printf("Texto ... TEL: %s\nARQUIVO: %s\n", telefone_arquivo, arquivo);
+    }
+}
+
+void create_socket() {
+    // int s_dados;                     /* Socket para aceitar conexoes       */
+	// int *ns_dados = 0;                /* Socket conectado ao cliente        */
+    unsigned short port;
+
+    /*
+     * O primeiro argumento (argv[1]) e a porta
+     * onde o servidor aguardara por conexoes
+     */
+
+    port = (unsigned short) 0;
+
+    /*
+     * Cria um socket TCP (stream) para aguardar conexoes
+     */
+    if ((s_dados = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    {
+	  perror("Socket()");
+	  exit(2);
+    }
+
+   /*
+    * Define a qual endereco IP e porta o servidor estara ligado.
+    * IP = INADDDR_ANY -> faz com que o servidor se ligue em todos
+    * os enderecos IP
+    */
+    server_dados.sin_family = AF_INET;   
+    server_dados.sin_port   = htons(port);       
+    server_dados.sin_addr.s_addr = INADDR_ANY;
+
+    /*
+     * Liga o servidor a porta definida anteriormente.
+     */
+    if (bind(s_dados, (struct sockaddr *)&server_dados, sizeof(server_dados)) < 0)
+    {
+		perror("Bind() aqui ... ");
+		exit(3);
+    }
+
+    /* Consulta qual porta foi utilizada. */
+    namelen_dados = sizeof(server_dados);
+    if (getsockname(s_dados, (struct sockaddr *) &server_dados, (socklen_t *) &namelen_dados) < 0) {
+        perror("getsockname()");
+        exit(1);
+    }
+
+	/* Imprime qual porta E IP foram utilizados. */
+    port_dados = ntohs(server_dados.sin_port);
+    printf("\nPorta utilizada (enviar): %d", ntohs(server_dados.sin_port));
+    printf("\nIP utilizado (enviar): %d\n", ntohs(server_dados.sin_addr.s_addr));
+
+    /*
+     * Prepara o socket para aguardar por conexoes e
+     * cria uma fila de conexoes pendentes.
+     */
+    if (listen(s_dados, 1) != 0)
+    {
+	  perror("Listen()");
+	  exit(4);
+    }
+
+    if (pthread_create(&thread_ServerCliente, NULL, thread_server, NULL)) {
+        printf("ERRO: impossivel criar uma thread\n");
+        exit(-1);
+    }
+}
+
 void adicionar_contato() {
     FILE *fp;
     char telefone[8];
@@ -653,7 +706,12 @@ void menu_chat_tipo_mensagem() {
             break;
 
         case 2:
-            printf("Arquivo ...");
+            comando = 3; // para acessar a funcao 3 do servidor
+            if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+            enviar_arquivo();
             break;
 
         case 3:
@@ -736,6 +794,7 @@ void criar_contato() {
 int main(int argc, char **argv){
     conectar(argv[1], argv[2], &s_server);
     criar_contato();
+    criar_pasta_dados();
     bool variavelLoop = false;
     int comando;
 
