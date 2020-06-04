@@ -48,6 +48,10 @@ struct mensagem_dados {
     long tamanho;
 };
 
+struct grupos {
+    char conteudo[20];
+    struct grupos *prox;
+};
 
 int s_server;
 int s_cliente , ns_cliente = 0;
@@ -67,7 +71,7 @@ struct stat st = {0};
 char command[COMMAND];
 
 long file_size(char *name) {
-    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
+    FILE *fp = fopen(name, "ar"); //must be binary read to get bytes
 
     long size;
     if(fp) {
@@ -127,7 +131,7 @@ void enviar(struct mensagem_dados arquivo) {
     if(fp) {
         int sent_bytes = 0;
         while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
-            printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
+            // printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
             sizeFile -= sent_bytes;
 
             if (send(s_cliente, &line, sent_bytes, 0) < 0) {
@@ -249,6 +253,30 @@ void encerrar() {
     exit(0);
 }
 
+void insere_lista_grupos(char telefone[], struct grupos *a) {
+    struct grupos *atual, *proximo;
+    struct grupos *novo;
+
+    atual = a;
+    proximo = a->prox;
+
+    novo = malloc (sizeof (struct grupos));
+    strcpy(novo->conteudo, telefone);
+    // printf("novo->conteudo: %s\n", novo->conteudo);
+
+    while (atual->prox != NULL) {
+        // printf("atual->conteudo: %s\n", atual->conteudo);
+        atual = proximo;
+        proximo = atual->prox;
+    }
+
+    if (proximo == NULL) {
+        // printf("atual->conteudo: %s\n", atual->conteudo);
+        novo->prox = atual->prox;
+        atual->prox = novo;
+    }
+};
+
 void insere_lista(char telefone[], struct agenda *a) {
     struct agenda *atual, *proximo;
     struct agenda *novo;
@@ -283,8 +311,8 @@ void listar_contatos() {
     FILE *fp;
     char str[DIGITOSTELEFONE];
     size_t len;
-    char nomeArquivo[20], file_name[20];
     char *line = NULL;
+    char nomeArquivo[20], file_name[20];
     int countTelefone = 0, read = 0;
 
     struct agenda *contato_agenda;
@@ -296,7 +324,9 @@ void listar_contatos() {
     strcpy(nomeArquivo, cliente.telefone);
     strcat(nomeArquivo, ".txt");
     snprintf(file_name, (strlen(nomeArquivo) + 1), "%s", nomeArquivo);// pega o nome do arquivo de um uma variavel
+    printf("file_name: %s\n", file_name);
     long int size = file_size(file_name);
+    printf("size: %ld\n", size);
 
     if (size == 0) {
         printf("Nao possui contatos cadastrados ...\n");
@@ -321,14 +351,9 @@ void listar_contatos() {
 
         while ((read = getline(&line, &len, fp)) != -1) {
             strtok(line, "\n");
-            printf("> %s - %zu\n", line, len);
             insere_lista(line, contato_agenda);
             countTelefone++;
-            printf("countTelefone: %i\n", countTelefone);
         };
-
-        printf("final - countTelefone: %i\n", countTelefone);
-        printf("Retrieved line of length %d:\n", read);
 
         fclose(fp);
 
@@ -343,7 +368,7 @@ void listar_contatos() {
             char conteudo[DIGITOSTELEFONE];
             strcpy(conteudo, print->conteudo);
 
-            printf("print->conteudo[%i]: %s - %lu\n", i, conteudo, sizeof(conteudo));
+            // printf("print->conteudo[%i]: %s - %lu\n", i, conteudo, sizeof(conteudo));
             if (send(s_server, conteudo, sizeof(conteudo), 0) < 0) {
                 perror("Send() 1");
                 exit(5);
@@ -627,6 +652,261 @@ void adicionar_contato() {
     printf("Novo contato salvo com sucesso!\n");
 };
 
+void enviar_mensagem_grupo(char grupo[]) {
+    struct dados_cliente dados;
+    FILE *fp;
+    char nameFolder[200], file_name[200];
+    size_t len;
+    char *line = NULL;
+    int read = 0;
+    char mensagem[2000], porta[32], telefone[DIGITOSTELEFONE];
+    memset(nameFolder, 0, sizeof(nameFolder));
+    memset(file_name, 0, sizeof(file_name));
+    
+    printf("Digite a mesnagem:\n");
+    fpurge(stdin);
+    fgets(mensagem,sizeof(mensagem),stdin);
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, grupo);
+    strcat(nameFolder, ".txt");
+    snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+    printf("file_name: %s\n", file_name);
+    fp = fopen(file_name, "r");// abre o arquivos
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        strtok(line, "\n");
+        printf("line: %s\n", line);
+        
+        int comando = 3; // para acessar a funcao 3 do servidor
+        if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
+        }
+
+        strcpy(telefone, line);
+        if (send(s_server, &telefone, (sizeof(telefone)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
+        }
+
+        if (recv(s_server, &dados, (sizeof(dados)), 0) < 0) {
+            perror("Recv()");
+            exit(6);
+        }
+
+        printf("Telefone: %s\n", dados.telefone);
+        printf("Porta: %i\n", dados.porta);
+        printf("IP: %s\n", dados.ip);
+
+        if (dados.porta != 0) {
+            struct mensagem_dados mensagem_dados;
+            strcpy(mensagem_dados.type, "mensagem");
+            strcpy(mensagem_dados.telefone_remetente, cliente.telefone);
+            strcpy(mensagem_dados.conteudo, mensagem);
+
+            sprintf(porta, "%i", dados.porta);
+            conectar(dados.ip, porta, &s_cliente);
+
+            if (send(s_cliente, &mensagem_dados, (sizeof(mensagem_dados)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+
+            close(s_cliente);
+
+            // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
+        }
+                // enviar_mensagem();
+    };
+
+
+	fclose(fp);
+}
+
+void enviar_arquivo_grupo(char grupo[]) {
+    struct dados_cliente dados;
+    FILE *fp;
+    char nameFolder[200], file_name[200], arquivo[100];
+    size_t len;
+    char *line = NULL;
+    int read = 0;
+    char mensagem[2000], porta[32], telefone[DIGITOSTELEFONE];
+    memset(nameFolder, 0, sizeof(nameFolder));
+    memset(file_name, 0, sizeof(file_name));
+    
+    printf("Digite o nome do arquivo:\n");
+    fpurge(stdin);
+    fgets(arquivo,sizeof(arquivo),stdin);
+    strtok(arquivo, "\n");
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, arquivo);
+    printf("nameFolder: %s\n\n", nameFolder);
+    snprintf(file_name, strlen(nameFolder)+1, "%s", nameFolder);
+    long size_file = file_size(file_name);
+    printf("size_file: %li\n", size_file);
+
+    struct mensagem_dados arquivo_dados;
+    strcpy(arquivo_dados.type, "arquivo");
+    strcpy(arquivo_dados.telefone_remetente, cliente.telefone);
+    strcpy(arquivo_dados.conteudo, arquivo);
+    arquivo_dados.tamanho = size_file;
+
+    memset(nameFolder, 0, sizeof(nameFolder));
+    memset(file_name, 0, sizeof(file_name));
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/");
+    strcat(nameFolder, grupo);
+    strcat(nameFolder, ".txt");
+    snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+    printf("file_name: %s\n", file_name);
+    fp = fopen(file_name, "r");// abre o arquivos
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        strtok(line, "\n");
+        printf("line: %s\n", line);
+        
+        int comando = 3; // para acessar a funcao 3 do servidor
+        if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
+        }
+
+        strcpy(telefone, line);
+        if (send(s_server, &telefone, (sizeof(telefone)), 0) < 0) {
+            perror("Send() 1");
+            exit(5);
+        }
+
+        if (recv(s_server, &dados, (sizeof(dados)), 0) < 0) {
+            perror("Recv()");
+            exit(6);
+        }
+
+        printf("Telefone: %s\n", dados.telefone);
+        printf("Porta: %i\n", dados.porta);
+        printf("IP: %s\n", dados.ip);
+
+        if (dados.porta != 0) {
+            sprintf(porta, "%i", dados.porta);
+            conectar(dados.ip, porta, &s_cliente);
+
+            if (send(s_cliente, &arquivo_dados, (sizeof(arquivo_dados)), 0) < 0) {
+                perror("Send() 1");
+                exit(5);
+            }
+
+            enviar(arquivo_dados);
+            close(s_cliente);
+
+            // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
+        }
+                // enviar_mensagem();
+    };
+
+
+	fclose(fp);
+}
+
+void menu_enviar_grupo() {
+    struct grupos *agenda_grupos;
+    agenda_grupos = malloc (sizeof (struct grupos));
+    agenda_grupos->prox = NULL;
+    strcpy(agenda_grupos->conteudo, "0000");
+
+
+    FILE *fp;
+    bool variavelLoop = false;
+    char telefone[DIGITOSTELEFONE];
+    char nameFolder[200];
+    char nome_grupo[20], file_name[200];
+    int comando, qntdContatos;
+    size_t len;
+    char *line = NULL;
+    int read = 0, countGrupos = 0, numeroGrupo = 0;
+
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/grupos.txt");
+    snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+
+    fp = fopen(file_name, "r");// abre o arquivo
+    // fprintf(fp, "%s\n", nome_grupo);
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        strtok(line, "\n");
+        insere_lista_grupos(line, agenda_grupos);
+        countGrupos++;
+    };
+
+    fclose(fp);
+
+    printf("Lista de Grupos: \n");
+    struct grupos *print;
+    print = agenda_grupos->prox;
+    
+    for(int i = 0; i < countGrupos; i++) {
+
+        printf("%i) %s\n", i+1, print->conteudo);
+
+        print = print->prox;
+    }
+
+    printf("Digite o grupo para enviar mensagem: \n");
+    scanf("%i", &numeroGrupo);
+
+    print = agenda_grupos->prox;
+    for(int i = 0; i < countGrupos; i++) {
+
+        if (numeroGrupo == i+1) {
+            memset(nome_grupo, 0, sizeof(nome_grupo));
+            strcpy(nome_grupo, print->conteudo);
+        }
+
+        print = print->prox;
+    }
+
+    free(agenda_grupos);
+    free(print);
+
+    printf("Grupo Selecionado: %s\n", nome_grupo);
+
+    // enviar_mensagem_grupo(nome_grupo);
+
+    do {
+        printf("CHAT GRUPO - Selecione o tipo de mensagem:\n"
+            "1 - Texto\n"
+            "2 - Arquivo\n"
+            "3 - Sair do Chat\n\n"
+            "Digite o numero da opcao: ");
+
+        fpurge(stdin);
+        scanf("%i", &comando);
+
+        switch (comando) {
+        case 1:
+            enviar_mensagem_grupo(nome_grupo);
+            break;
+
+        case 2:
+            enviar_arquivo_grupo(nome_grupo);
+            break;
+
+        case 3:
+            variavelLoop = true;
+            break;
+
+        default:
+            printf("Comando invalido ... Por favor insira um novo comando\n");
+            break;
+        }
+
+    } while(!variavelLoop);
+}
+
 void criar_grupo() {
     FILE *fp;
     char telefone[DIGITOSTELEFONE];
@@ -640,9 +920,20 @@ void criar_grupo() {
     fgets(nome_grupo,sizeof(nome_grupo),stdin);
     strtok(nome_grupo, "\n");
 
+    strcpy(nameFolder, nome_pasta);
+    strcat(nameFolder, "/grupos.txt");
+    snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+
+    fp = fopen(file_name, "a");// abre o arquivo
+    fprintf(fp, "%s\n", nome_grupo);
+	fclose(fp);
+
     printf("Digite quantos contatos tera o grupo: ");
     scanf("%i", &qntdContatos);
-
+    
+    memset(nameFolder, 0, sizeof(nameFolder));
+    memset(file_name, 0, sizeof(file_name));
+    
     strcpy(nameFolder, nome_pasta);
     strcat(nameFolder, "/");
     strcat(nameFolder, nome_grupo);
@@ -728,7 +1019,8 @@ void menu_chat() {
             break;
 
         case 2:
-            printf("GRUPO ...");
+            printf("GRUPO ...\n");
+            menu_enviar_grupo();
             break;
 
         case 3:
@@ -843,6 +1135,8 @@ int main(int argc, char **argv){
         case 4:
             if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
                 perror("Send()");
+                // decadron 4mg 
+                // dipipora
                 exit(5);
             }
             encerrar();
