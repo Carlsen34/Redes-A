@@ -28,7 +28,7 @@ Kaíque Ferreira Fávero 15118698
 #define FILESIZE 4096
 #define DIGITOSTELEFONE 9
 #define STRINGSIZE 90
-#define TAMANHOMENSAGEM 2000
+#define TAMANHOMENSAGEM 200
 
 struct dados_cliente {
 	char telefone[DIGITOSTELEFONE];
@@ -227,10 +227,18 @@ void *thread_server() {
         }
 
         if ((strcmp(tipo_mensagem.type, "mensagem") == 0)) {
-            printf("Mensagem Recebida ...\n\n");
+            printf("\0337\n\033[B");
+            printf("\033[L**************** y *****************\n");
+            printf("\033[LRemetente: %s\n",tipo_mensagem.telefone_remetente);
+            printf("\033[LMensagem: %s\n", tipo_mensagem.conteudo);
+            printf("\033[L***************** x  ****************\n");
+            printf("\0338\033[5A");
+            fflush(stdout);
+            // fflush(stdout);
+            // printf("Mensagem Recebida ...\n\n");
 
-            printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
-            printf("Mensagem: %s\n", tipo_mensagem.conteudo);
+            // printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
+            // printf("Mensagem: %s\n", tipo_mensagem.conteudo);
         }
         
         if ((strcmp(tipo_mensagem.type, "arquivo") == 0)){
@@ -332,16 +340,6 @@ void listar_contatos() {
         printf("Nao possui contatos cadastrados ...\n");
     } else {
         fp = fopen(file_name, "r");// abre o arquivo
-        // char *fcontent = malloc(size);
-        // fread(fcontent, 1, size, fp);
-        // char *pt;
-        // pt = strtok (fcontent,"");
-        // while (pt != NULL) {
-        //     printf("%s\n",pt);
-        //     insere_lista(pt, contato_agenda);
-        //     countTelefone++;
-        //     pt = strtok (NULL, ",");
-        // }
 
         int comando = 2;
         if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
@@ -379,7 +377,13 @@ void listar_contatos() {
                 exit(6);
             }
 
-            printf("%i) %s - %s\n", i+1, status.telefone, status.status);
+            if ((strcmp(status.status, "Online")) == 0) {
+                printf("\033[0;32m %i) %s - %s\n", i+1, status.telefone, status.status);
+                printf("\033[0;37m");
+            } else {
+                printf("\033[0;31m %i) %s - %s\n", i+1, status.telefone, status.status);
+                printf("\033[0;37m");
+            }
 
             print = print->prox;
         }
@@ -457,9 +461,9 @@ void enviar_mensagem() {
         exit(6);
     }
 
-    printf("Telefone: %s\n", dados.telefone);
-    printf("Porta: %i\n", dados.porta);
-    printf("IP: %s\n", dados.ip);
+    // printf("Telefone: %s\n", dados.telefone);
+    // printf("Porta: %i\n", dados.porta);
+    // printf("IP: %s\n", dados.ip);
 
     if (dados.porta == 0) {
         printf("Contato offline ... Tente mais tarde\n");
@@ -467,6 +471,7 @@ void enviar_mensagem() {
         printf("Digite a mesnagem:\n");
         fpurge(stdin);
         fgets(mensagem,sizeof(mensagem),stdin);
+        strtok(mensagem, "\n");
 
         struct mensagem_dados mensagem_dados;
         strcpy(mensagem_dados.type, "mensagem");
@@ -483,7 +488,7 @@ void enviar_mensagem() {
 
         close(s_cliente);
 
-        printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
+        // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
     }
 }
 
@@ -673,6 +678,7 @@ void enviar_mensagem_grupo(char grupo[]) {
     strcat(nameFolder, ".txt");
     snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
     printf("file_name: %s\n", file_name);
+
     fp = fopen(file_name, "r");// abre o arquivos
 
     while ((read = getline(&line, &len, fp)) != -1) {
@@ -696,10 +702,6 @@ void enviar_mensagem_grupo(char grupo[]) {
             exit(6);
         }
 
-        printf("Telefone: %s\n", dados.telefone);
-        printf("Porta: %i\n", dados.porta);
-        printf("IP: %s\n", dados.ip);
-
         if (dados.porta != 0) {
             struct mensagem_dados mensagem_dados;
             strcpy(mensagem_dados.type, "mensagem");
@@ -715,14 +717,10 @@ void enviar_mensagem_grupo(char grupo[]) {
             }
 
             close(s_cliente);
-
-            // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
         }
-                // enviar_mensagem();
     };
+    fclose(fp);
 
-
-	fclose(fp);
 }
 
 void enviar_arquivo_grupo(char grupo[]) {
@@ -832,79 +830,84 @@ void menu_enviar_grupo() {
     strcpy(nameFolder, nome_pasta);
     strcat(nameFolder, "/grupos.txt");
     snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
+    long int size = file_size(file_name);
+    printf("size: %ld\n", size);
 
-    fp = fopen(file_name, "r");// abre o arquivo
-    // fprintf(fp, "%s\n", nome_grupo);
+    if (size == 0) {
+        printf("Nao possui grupos cadastrados ...\n");
+    } else {
+        fp = fopen(file_name, "r");// abre o arquivo
 
-    while ((read = getline(&line, &len, fp)) != -1) {
-        strtok(line, "\n");
-        insere_lista_grupos(line, agenda_grupos);
-        countGrupos++;
-    };
+        while ((read = getline(&line, &len, fp)) != -1) {
+            strtok(line, "\n");
+            insere_lista_grupos(line, agenda_grupos);
+            countGrupos++;
+        };
 
-    fclose(fp);
+        fclose(fp);
 
-    printf("Lista de Grupos: \n");
-    struct grupos *print;
-    print = agenda_grupos->prox;
-    
-    for(int i = 0; i < countGrupos; i++) {
+        printf("Lista de Grupos: \n");
+        struct grupos *print;
+        print = agenda_grupos->prox;
+        
+        for(int i = 0; i < countGrupos; i++) {
 
-        printf("%i) %s\n", i+1, print->conteudo);
+            printf("%i) %s\n", i+1, print->conteudo);
 
-        print = print->prox;
-    }
-
-    printf("Digite o grupo para enviar mensagem: \n");
-    scanf("%i", &numeroGrupo);
-
-    print = agenda_grupos->prox;
-    for(int i = 0; i < countGrupos; i++) {
-
-        if (numeroGrupo == i+1) {
-            memset(nome_grupo, 0, sizeof(nome_grupo));
-            strcpy(nome_grupo, print->conteudo);
+            print = print->prox;
         }
 
-        print = print->prox;
-    }
+        printf("Digite o grupo para enviar mensagem: \n");
+        scanf("%i", &numeroGrupo);
 
-    free(agenda_grupos);
-    free(print);
+        print = agenda_grupos->prox;
+        for(int i = 0; i < countGrupos; i++) {
 
-    printf("Grupo Selecionado: %s\n", nome_grupo);
+            if (numeroGrupo == i+1) {
+                memset(nome_grupo, 0, sizeof(nome_grupo));
+                strcpy(nome_grupo, print->conteudo);
+            }
 
-    // enviar_mensagem_grupo(nome_grupo);
-
-    do {
-        printf("CHAT GRUPO - Selecione o tipo de mensagem:\n"
-            "1 - Texto\n"
-            "2 - Arquivo\n"
-            "3 - Sair do Chat\n\n"
-            "Digite o numero da opcao: ");
-
-        fpurge(stdin);
-        scanf("%i", &comando);
-
-        switch (comando) {
-        case 1:
-            enviar_mensagem_grupo(nome_grupo);
-            break;
-
-        case 2:
-            enviar_arquivo_grupo(nome_grupo);
-            break;
-
-        case 3:
-            variavelLoop = true;
-            break;
-
-        default:
-            printf("Comando invalido ... Por favor insira um novo comando\n");
-            break;
+            print = print->prox;
         }
 
-    } while(!variavelLoop);
+        free(agenda_grupos);
+        free(print);
+
+        printf("Grupo Selecionado: %s\n", nome_grupo);
+
+        // enviar_mensagem_grupo(nome_grupo);
+
+        do {
+            printf("CHAT GRUPO - Selecione o tipo de mensagem:\n"
+                "1 - Texto\n"
+                "2 - Arquivo\n"
+                "3 - Sair do Chat\n\n"
+                "Digite o numero da opcao: ");
+
+            fpurge(stdin);
+            scanf("%i", &comando);
+
+            switch (comando) {
+            case 1:
+                enviar_mensagem_grupo(nome_grupo);
+                break;
+
+            case 2:
+                enviar_arquivo_grupo(nome_grupo);
+                break;
+
+            case 3:
+                variavelLoop = true;
+                break;
+
+            default:
+                printf("Comando invalido ... Por favor insira um novo comando\n");
+                break;
+            }
+
+        } while(!variavelLoop);
+    }
 }
 
 void criar_grupo() {
@@ -1075,27 +1078,55 @@ void menu_adicionar_contato() {
 
 void criar_contato() {
     char telefone[DIGITOSTELEFONE];
+    bool variavelLoop = true;
+    struct controle_status {
+        char telefone[DIGITOSTELEFONE];
+        char status[10];
+    };
+
+    struct controle_status status;
 
     create_socket();
-    printf("Insira o seu telefone - 8 digitos: ");
 
-    fpurge(stdin);
-    fgets(telefone,sizeof(telefone),stdin);
-    strtok(telefone, "\n");
+    do {
+        printf("Insira o seu telefone - 8 digitos: ");
 
-    cliente.porta = port_dados;
-    strcpy(cliente.telefone, telefone);
-    strcpy(cliente.ip, ip);
+        fpurge(stdin);
+        fgets(telefone,sizeof(telefone),stdin);
+        strtok(telefone, "\n");
 
-    printf("PORTA: %d\n", cliente.porta);
-	printf("TELEFONE: %s\n", cliente.telefone);
-	printf("IP: %s\n", cliente.ip);
+        cliente.porta = port_dados;
+        strcpy(cliente.telefone, telefone);
+        strcpy(cliente.ip, ip);
 
-    // enviar para o servidor a porta do socket de dados e do telefone
-    if (send(s_server, &cliente, (sizeof(cliente)), 0) < 0) {
-        perror("Send() 3");
-        exit(5);
-    }
+        // printf("PORTA: %d\n", cliente.porta);
+        // printf("TELEFONE: %s\n", cliente.telefone);
+        // printf("IP: %s\n", cliente.ip);
+
+        // enviar para o servidor a porta do socket de dados e do telefone
+        if (send(s_server, &cliente, (sizeof(cliente)), 0) < 0) {
+            perror("Send() 3");
+            exit(5);
+        }
+
+        if (recv(s_server, &status, (sizeof(status)), 0) < 0) {
+            perror("Send() 3");
+            exit(5);
+        }
+
+        printf("status.status: %s\n", status.status);
+        printf("status.telefone: %s\n", status.telefone);
+
+        if ((strcmp(status.status, "ok") == 0)) {
+            variavelLoop = false;
+            printf("\033[0;34mCliente cadastrado com sucesso!\n");
+            printf("\033[0;37m");
+        } else { 
+            printf("\033[0;31mJa existe um usuairo cadastrado no sistema com esse telefone!\n");
+            printf("\033[0;37m");
+        }
+
+    } while(variavelLoop);
 
     // printf("Insira o seu telefone: ");
 };
@@ -1109,12 +1140,24 @@ int main(int argc, char **argv){
     int comando;
 
     do {
-        printf("MENU:\n"
+        //system("clear");
+        // system("/bin/zsh");
+            printf("MENU:\n\a"
             "1 - Adicionar novo contato\n"
             "2 - Ver contatos\n"
             "3 - Enviar mensagem\n"
             "4 - Sair da aplicacao\n\n"
             "Digite o numero da opcao: ");
+
+            // printf("\0337\n\033[");
+            // printf("\033[L**************** y *****************\n");
+            // printf("\033[LRemetente: %s\n","BATATA");
+            // printf("\033[LMensagem: %s\n","BATATA");
+            // printf("\033[L***************** x  ****************\n");
+            // // printf("\033[LDigite o numero da opcao:\n");
+            // // printf("\033[1F");
+            // printf("\0338\033[5A");
+            // fflush(stdout);
 
         fpurge(stdin);
         scanf("%i", &comando);
@@ -1135,8 +1178,6 @@ int main(int argc, char **argv){
         case 4:
             if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
                 perror("Send()");
-                // decadron 4mg 
-                // dipipora
                 exit(5);
             }
             encerrar();
