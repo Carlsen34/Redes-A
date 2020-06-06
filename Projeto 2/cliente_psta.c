@@ -46,6 +46,7 @@ struct mensagem_dados {
     char conteudo[TAMANHOMENSAGEM];
     char type[10];
     long tamanho;
+    struct mensgem_dados *prox;
 };
 
 struct grupos {
@@ -56,6 +57,7 @@ struct grupos {
 int s_server;
 int s_cliente , ns_cliente = 0;
 
+struct mensagem_dados *mensagens;
 //variaveis para a criacao do socket de dados
 char ip[STRINGSIZE]; // buffer temporario para string
 int s_dados, ns_dados, port_dados;
@@ -63,7 +65,7 @@ pthread_t thread_ServerCliente;
 struct sockaddr_in client_dados, cliente_mensagem; 
 struct sockaddr_in server_dados; 
 struct dados_cliente cliente;
-int namelen_dados, namelen_mensagem;
+int namelen_dados, namelen_mensagem, qntdMensagens = 0;
 
 char path[106], nome_pasta[106];
 struct stat st = {0};
@@ -103,19 +105,6 @@ void enviar(struct mensagem_dados arquivo) {
     long sizeFile = arquivo.tamanho;
     char line[FILESIZE];
 
-    // char path[106], nome_pasta[106];
-    // struct stat st = {0};
-
-    // strcpy(nome_pasta, cliente.telefone);
-    // strcat(nome_pasta, "_dados");
-    // strcat(path, "/");
-    // strcat(path, nome_pasta);
-
-    // // cria o diretorio de dados
-    // if (stat(path, &st) == -1) {
-    //     mkdir(nome_pasta, 0777);
-    // }
-
     strcpy(nameFolder, nome_pasta);
     strcat(nameFolder, "/");
     strcat(nameFolder, arquivo.conteudo);
@@ -131,7 +120,6 @@ void enviar(struct mensagem_dados arquivo) {
     if(fp) {
         int sent_bytes = 0;
         while((sent_bytes = fread(line, 1, FILESIZE, fp)) && (sizeFile > 0)) {
-            // printf("sizeFile: %li - %i\n", sizeFile, sent_bytes);
             sizeFile -= sent_bytes;
 
             if (send(s_cliente, &line, sent_bytes, 0) < 0) {
@@ -140,11 +128,9 @@ void enviar(struct mensagem_dados arquivo) {
             }
             memset(line, 0, sizeof(line));
         }
-        printf("Finalizou o processo de envio ... \n");
     }
 
     fclose(fp);
-    // close(ns);
     printf("Fechou tudo!\n");
 }
 
@@ -157,31 +143,15 @@ void receber_arquivo(struct mensagem_dados arquivo) {
     long sizeFile = arquivo.tamanho;
     char line[FILESIZE];
 
-    // char path[106], nome_pasta[106];
-    // struct stat st = {0};
-
-    // strcpy(nome_pasta, cliente.telefone);
-    // strcat(nome_pasta, "_dados");
-    // strcat(path, "/");
-    // strcat(path, nome_pasta);
-
-    // // cria o diretorio de dados
-    // if (stat(path, &st) == -1) {
-    //     mkdir(nome_pasta, 0777);
-    // }
-
     strcpy(nameFolder, nome_pasta);
     strcat(nameFolder, "/");
     strcat(nameFolder, arquivo.conteudo);
     printf("nome_pasta: %s\n\n", nameFolder);
 
-    // printf("sizeFile: %li\n", sizeFile);
 
     // le o nome do arquivo
-    // printf("nome_local: %s\n", nome_local);
     snprintf(file_name, strlen(nameFolder)+1, "%s", nameFolder);
     printf("file_name: %s\n", file_name);
-    // printf("(sizeof(line)): %lu\n", (sizeof(line)));
     fp = fopen(file_name, "wb");
 
     if(fp) {
@@ -193,10 +163,6 @@ void receber_arquivo(struct mensagem_dados arquivo) {
 				exit(5);
 			}
 
-            if(sent_bytes > 0) {
-                printf("sent_bytes = %i\n", sent_bytes);
-            }
-
 			accum += sent_bytes;//track size of growing file
 
 			fwrite(line, sent_bytes, 1, fp);
@@ -205,8 +171,25 @@ void receber_arquivo(struct mensagem_dados arquivo) {
 
     fclose(fp);
     close(ns_cliente);
-    printf("Fechou tudo!\n");
 }
+
+void insere_lista_mensagens(struct mensagem_dados *novo, struct mensagem_dados *a) {
+    struct mensagem_dados *atual, *proximo;
+
+    atual = a;
+    proximo = a->prox;
+
+
+    while (atual->prox != NULL) {
+        atual = proximo;
+        proximo = atual->prox;
+    }
+
+    if (proximo == NULL) {
+        novo->prox = atual->prox;
+        atual->prox = novo;
+    }
+};
 
 void *thread_server() {
     struct mensagem_dados tipo_mensagem;
@@ -227,25 +210,13 @@ void *thread_server() {
         }
 
         if ((strcmp(tipo_mensagem.type, "mensagem") == 0)) {
-            printf("\0337\n\033[B");
-            printf("\033[L**************** y *****************\n");
-            printf("\033[LRemetente: %s\n",tipo_mensagem.telefone_remetente);
-            printf("\033[LMensagem: %s\n", tipo_mensagem.conteudo);
-            printf("\033[L***************** x  ****************\n");
-            printf("\0338\033[5A");
-            fflush(stdout);
-            // fflush(stdout);
-            // printf("Mensagem Recebida ...\n\n");
-
-            // printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
-            // printf("Mensagem: %s\n", tipo_mensagem.conteudo);
+            insere_lista_mensagens(&tipo_mensagem, mensagens);
+            qntdMensagens++;
         }
         
         if ((strcmp(tipo_mensagem.type, "arquivo") == 0)){
-            printf("Arquivo Recebido ...\n\n");
-            printf("Remetente: %s\n", tipo_mensagem.telefone_remetente);
-            printf("Conteudo: %s\n", tipo_mensagem.conteudo);
-            printf("Tamanho: %li\n\n", tipo_mensagem.tamanho);
+            insere_lista_mensagens(&tipo_mensagem, mensagens);
+            qntdMensagens++;
             receber_arquivo(tipo_mensagem);
         }
 	}
@@ -270,16 +241,13 @@ void insere_lista_grupos(char telefone[], struct grupos *a) {
 
     novo = malloc (sizeof (struct grupos));
     strcpy(novo->conteudo, telefone);
-    // printf("novo->conteudo: %s\n", novo->conteudo);
 
     while (atual->prox != NULL) {
-        // printf("atual->conteudo: %s\n", atual->conteudo);
         atual = proximo;
         proximo = atual->prox;
     }
 
     if (proximo == NULL) {
-        // printf("atual->conteudo: %s\n", atual->conteudo);
         novo->prox = atual->prox;
         atual->prox = novo;
     }
@@ -294,16 +262,13 @@ void insere_lista(char telefone[], struct agenda *a) {
 
     novo = malloc (sizeof (struct agenda));
     strcpy(novo->conteudo, telefone);
-    // printf("novo->conteudo: %s\n", novo->conteudo);
 
     while (atual->prox != NULL) {
-        // printf("atual->conteudo: %s\n", atual->conteudo);
         atual = proximo;
         proximo = atual->prox;
     }
 
     if (proximo == NULL) {
-        // printf("atual->conteudo: %s\n", atual->conteudo);
         novo->prox = atual->prox;
         atual->prox = novo;
     }
@@ -366,7 +331,6 @@ void listar_contatos() {
             char conteudo[DIGITOSTELEFONE];
             strcpy(conteudo, print->conteudo);
 
-            // printf("print->conteudo[%i]: %s - %lu\n", i, conteudo, sizeof(conteudo));
             if (send(s_server, conteudo, sizeof(conteudo), 0) < 0) {
                 perror("Send() 1");
                 exit(5);
@@ -461,9 +425,9 @@ void enviar_mensagem() {
         exit(6);
     }
 
-    // printf("Telefone: %s\n", dados.telefone);
-    // printf("Porta: %i\n", dados.porta);
-    // printf("IP: %s\n", dados.ip);
+    printf("Telefone: %s\n", dados.telefone);
+    printf("Porta: %i\n", dados.porta);
+    printf("IP: %s\n", dados.ip);
 
     if (dados.porta == 0) {
         printf("Contato offline ... Tente mais tarde\n");
@@ -487,8 +451,6 @@ void enviar_mensagem() {
         }
 
         close(s_cliente);
-
-        // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
     }
 }
 
@@ -568,16 +530,12 @@ void enviar_arquivo() {
 }
 
 void create_socket() {
-    // int s_dados;                     /* Socket para aceitar conexoes       */
-	// int *ns_dados = 0;                /* Socket conectado ao cliente        */
-    unsigned short port;
-
     /*
      * O primeiro argumento (argv[1]) e a porta
      * onde o servidor aguardara por conexoes
      */
 
-    port = (unsigned short) 0;
+     unsigned short port = (unsigned short) 0;
 
     /*
      * Cria um socket TCP (stream) para aguardar conexoes
@@ -801,13 +759,21 @@ void enviar_arquivo_grupo(char grupo[]) {
             enviar(arquivo_dados);
             close(s_cliente);
 
-            // printf("Texto ... TEL: %s\nMENSAGEM: %s\n", telefone_mensagem, mensagem);
         }
-                // enviar_mensagem();
     };
-
-
 	fclose(fp);
+}
+
+void ler_mensagens() {
+    struct mensagem_dados *print;
+    print = mensagens->prox; 
+    printf("Caixa de mensagens...\n");
+
+    for (int i = 0; i < qntdMensagens; i++) {
+        printf("%i) %s \n", i+1, print->type);
+        printf("Remetente: %s\n", print->telefone_remetente);
+        printf("Conteudo: %s\n", print->conteudo);
+    }
 }
 
 void menu_enviar_grupo() {
@@ -876,8 +842,6 @@ void menu_enviar_grupo() {
 
         printf("Grupo Selecionado: %s\n", nome_grupo);
 
-        // enviar_mensagem_grupo(nome_grupo);
-
         do {
             printf("CHAT GRUPO - Selecione o tipo de mensagem:\n"
                 "1 - Texto\n"
@@ -945,12 +909,11 @@ void criar_grupo() {
     fp = fopen(file_name, "a");// abre o arquivo
 
     for (int i = 0; i < qntdContatos; i++) {
-        printf("Digite o %i telefone do grupo: ", i);
+        printf("Digite o %i telefone do grupo: ", i+1);
         fpurge(stdin);
         fgets(telefone,sizeof(telefone),stdin);
         strtok(telefone, "\n");
         fprintf(fp, "%s\n", telefone);
-        printf("\n");
     }
 
 	fclose(fp);
@@ -1085,8 +1048,9 @@ void criar_contato() {
     };
 
     struct controle_status status;
-
     create_socket();
+    mensagens = malloc (sizeof (struct mensagem_dados));
+    mensagens->prox = NULL;
 
     do {
         printf("Insira o seu telefone - 8 digitos: ");
@@ -1099,10 +1063,6 @@ void criar_contato() {
         strcpy(cliente.telefone, telefone);
         strcpy(cliente.ip, ip);
 
-        // printf("PORTA: %d\n", cliente.porta);
-        // printf("TELEFONE: %s\n", cliente.telefone);
-        // printf("IP: %s\n", cliente.ip);
-
         // enviar para o servidor a porta do socket de dados e do telefone
         if (send(s_server, &cliente, (sizeof(cliente)), 0) < 0) {
             perror("Send() 3");
@@ -1113,9 +1073,6 @@ void criar_contato() {
             perror("Send() 3");
             exit(5);
         }
-
-        printf("status.status: %s\n", status.status);
-        printf("status.telefone: %s\n", status.telefone);
 
         if ((strcmp(status.status, "ok") == 0)) {
             variavelLoop = false;
@@ -1140,24 +1097,13 @@ int main(int argc, char **argv){
     int comando;
 
     do {
-        //system("clear");
-        // system("/bin/zsh");
-            printf("MENU:\n\a"
-            "1 - Adicionar novo contato\n"
-            "2 - Ver contatos\n"
-            "3 - Enviar mensagem\n"
-            "4 - Sair da aplicacao\n\n"
-            "Digite o numero da opcao: ");
-
-            // printf("\0337\n\033[");
-            // printf("\033[L**************** y *****************\n");
-            // printf("\033[LRemetente: %s\n","BATATA");
-            // printf("\033[LMensagem: %s\n","BATATA");
-            // printf("\033[L***************** x  ****************\n");
-            // // printf("\033[LDigite o numero da opcao:\n");
-            // // printf("\033[1F");
-            // printf("\0338\033[5A");
-            // fflush(stdout);
+        printf("MENU:\n\a"
+        "1 - Adicionar novo contato\n"
+        "2 - Ver contatos\n"
+        "3 - Enviar mensagem\n"
+        "4 - Ver Mensagens(%i)\n"
+        "5 - Sair da aplicacao\n\n"
+        "Digite o numero da opcao: ", qntdMensagens);
 
         fpurge(stdin);
         scanf("%i", &comando);
@@ -1176,6 +1122,10 @@ int main(int argc, char **argv){
             break;
 
         case 4:
+            ler_mensagens();
+            break;
+
+        case 5:
             if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
                 perror("Send()");
                 exit(5);

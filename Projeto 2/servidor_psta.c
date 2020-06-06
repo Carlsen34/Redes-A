@@ -360,7 +360,7 @@ void *recebe_comando(void* parameters){
 			printf("VOLTOU DO CHAT ...\n");
             break;
 
-        case 4:
+        case 5:
 			encerrar(args.ns, args.s, args.thread_id);
             variavelLoop = false;
             break;
