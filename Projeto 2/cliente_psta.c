@@ -297,13 +297,12 @@ void listar_contatos() {
     strcpy(nomeArquivo, cliente.telefone);
     strcat(nomeArquivo, ".txt");
     snprintf(file_name, (strlen(nomeArquivo) + 1), "%s", nomeArquivo);// pega o nome do arquivo de um uma variavel
-    printf("file_name: %s\n", file_name);
     long int size = file_size(file_name);
-    printf("size: %ld\n", size);
 
     if (size == 0) {
         printf("Nao possui contatos cadastrados ...\n");
     } else {
+        printf("Status dos contatos:\n");
         fp = fopen(file_name, "r");// abre o arquivo
 
         int comando = 2;
@@ -363,9 +362,6 @@ void conectar(char hostname[], char porta[], int *s) {
     struct hostent *hostnm;
     struct sockaddr_in server;
 
-    printf("hostname: %s\n", hostname);
-    printf("porta: %s\n", porta);
-
     /*
      * Obtendo o endereco IP do servidor
      */
@@ -385,7 +381,6 @@ void conectar(char hostname[], char porta[], int *s) {
     server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
 
     inet_ntop(AF_INET, &server.sin_addr, ip, STRINGSIZE);
-    printf("server.sin_addr.s_addr: %s\n", ip);
 
     /*
      * Cria um socket TCP (stream)
@@ -410,7 +405,7 @@ void enviar_mensagem() {
     char mensagem[TAMANHOMENSAGEM];
     char porta[32];
 
-    printf("Digite o telefone para enviar a mensagem:\n");
+    printf("Digite o telefone para enviar a mensagem: ");
     fpurge(stdin);
     fgets(telefone_mensagem,sizeof(telefone_mensagem),stdin);
     strtok(telefone_mensagem, "\n");
@@ -424,10 +419,6 @@ void enviar_mensagem() {
         perror("Recv()");
         exit(6);
     }
-
-    printf("Telefone: %s\n", dados.telefone);
-    printf("Porta: %i\n", dados.porta);
-    printf("IP: %s\n", dados.ip);
 
     if (dados.porta == 0) {
         printf("Contato offline ... Tente mais tarde\n");
@@ -478,9 +469,6 @@ void enviar_arquivo() {
         exit(6);
     }
 
-    printf("Telefone: %s\n", dados.telefone);
-    printf("Porta: %i\n", dados.porta);
-    printf("IP: %s\n", dados.ip);
 
     if (dados.porta == 0) {
         printf("Contato offline ... Tente mais tarde\n");
@@ -503,10 +491,8 @@ void enviar_arquivo() {
 
         strcat(nome_pasta, "/");
         strcat(nome_pasta, arquivo);
-        printf("nome_pasta: %s\n\n", nome_pasta);
         snprintf(file_name, strlen(nome_pasta)+1, "%s", nome_pasta);
         long size_file = file_size(file_name);
-	    printf("size_file: %li\n", size_file);
 
         struct mensagem_dados arquivo_dados;
         strcpy(arquivo_dados.type, "arquivo");
@@ -525,7 +511,6 @@ void enviar_arquivo() {
         enviar(arquivo_dados);
         close(s_cliente);
 
-        printf("Texto ... TEL: %s\nARQUIVO: %s\n", telefone_arquivo, arquivo);
     }
 }
 
@@ -573,8 +558,6 @@ void create_socket() {
 
 	/* Imprime qual porta E IP foram utilizados. */
     port_dados = ntohs(server_dados.sin_port);
-    printf("\nPorta utilizada (enviar): %d", ntohs(server_dados.sin_port));
-    printf("\nIP utilizado (enviar): %d\n", ntohs(server_dados.sin_addr.s_addr));
 
     /*
      * Prepara o socket para aguardar por conexoes e
@@ -635,13 +618,11 @@ void enviar_mensagem_grupo(char grupo[]) {
     strcat(nameFolder, grupo);
     strcat(nameFolder, ".txt");
     snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
-    printf("file_name: %s\n", file_name);
 
     fp = fopen(file_name, "r");// abre o arquivos
 
     while ((read = getline(&line, &len, fp)) != -1) {
         strtok(line, "\n");
-        printf("line: %s\n", line);
         
         int comando = 3; // para acessar a funcao 3 do servidor
         if (send(s_server, &comando, (sizeof(comando)), 0) < 0) {
@@ -700,10 +681,8 @@ void enviar_arquivo_grupo(char grupo[]) {
     strcpy(nameFolder, nome_pasta);
     strcat(nameFolder, "/");
     strcat(nameFolder, arquivo);
-    printf("nameFolder: %s\n\n", nameFolder);
     snprintf(file_name, strlen(nameFolder)+1, "%s", nameFolder);
     long size_file = file_size(file_name);
-    printf("size_file: %li\n", size_file);
 
     struct mensagem_dados arquivo_dados;
     strcpy(arquivo_dados.type, "arquivo");
@@ -719,7 +698,6 @@ void enviar_arquivo_grupo(char grupo[]) {
     strcat(nameFolder, grupo);
     strcat(nameFolder, ".txt");
     snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
-    printf("file_name: %s\n", file_name);
     fp = fopen(file_name, "r");// abre o arquivos
 
     while ((read = getline(&line, &len, fp)) != -1) {
@@ -743,9 +721,6 @@ void enviar_arquivo_grupo(char grupo[]) {
             exit(6);
         }
 
-        printf("Telefone: %s\n", dados.telefone);
-        printf("Porta: %i\n", dados.porta);
-        printf("IP: %s\n", dados.ip);
 
         if (dados.porta != 0) {
             sprintf(porta, "%i", dados.porta);
@@ -797,7 +772,6 @@ void menu_enviar_grupo() {
     strcat(nameFolder, "/grupos.txt");
     snprintf(file_name, (strlen(nameFolder) + 1), "%s", nameFolder);// pega o nome do arquivo de um uma variavel
     long int size = file_size(file_name);
-    printf("size: %ld\n", size);
 
     if (size == 0) {
         printf("Nao possui grupos cadastrados ...\n");
@@ -985,7 +959,6 @@ void menu_chat() {
             break;
 
         case 2:
-            printf("GRUPO ...\n");
             menu_enviar_grupo();
             break;
 
@@ -1101,9 +1074,9 @@ int main(int argc, char **argv){
         "1 - Adicionar novo contato\n"
         "2 - Ver contatos\n"
         "3 - Enviar mensagem\n"
-        "4 - Ver Mensagens(%i)\n"
+        "4 - Ver Mensagens\n"
         "5 - Sair da aplicacao\n\n"
-        "Digite o numero da opcao: ", qntdMensagens);
+        "Digite o numero da opcao: ");
 
         fpurge(stdin);
         scanf("%i", &comando);
