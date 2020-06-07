@@ -57,71 +57,11 @@ int s_file, ns_file;
 
 char command[commandSizes];
 
-void print_contatos() {
-	for (int i = 0; i < MaxArray; i++) {
-		printf("%i) PORTA: %d - TELEFONE: %s - IP: %s\n", contatos[i].thread_id, contatos[i].porta, contatos[i].telefone, contatos[i].ip);
-	}
-}
-
-int conectar_file(char hostname[], int porta) {
-    unsigned short port;
-    struct hostent *hostnm;
-    struct sockaddr_in server;
-
-    /*
-     * Obtendo o endereco IP do servidor
-     */
-    hostnm = gethostbyname(hostname);
-    if (hostnm == (struct hostent *) 0)
-    {
-        fprintf(stderr, "Gethostbyname failed\n");
-        exit(2);
-    }
-    port = (unsigned short) (porta);
-
-    /*
-     * Define o endereco IP e a porta do servidor
-     */
-    server.sin_family      = AF_INET;
-    server.sin_port        = htons(port);
-    server.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
-
-    /*
-     * Cria um socket TCP (stream)
-     */
-    if ((s_file = socket(PF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        perror("Socket()");
-        exit(3);
-    }
-
-    /* Estabelece conexao com o servidor */
-    if ((connect(s_file, (struct sockaddr *)&server, sizeof(server))) < 0)
-    {
-        perror("Connect()");
-        exit(4);
-    }
-
-	printf("hostname: %s\n", hostname);
-    printf("porta: %i\n", porta);
-
-
-    return s_file;
-}
-
-long file_size(char *name) {
-    FILE *fp = fopen(name, "rb"); //must be binary read to get bytes
-
-    long size= 0 ;
-    if(fp)
-    {
-        fseek (fp, 0, SEEK_END);
-        size = ftell(fp);
-        fclose(fp);
-    }
-    return size;
-}
-
+// void print_contatos() {
+// 	for (int i = 0; i < MaxArray; i++) {
+// 		printf("%i) PORTA: %d - TELEFONE: %s - IP: %s\n", contatos[i].thread_id, contatos[i].porta, contatos[i].telefone, contatos[i].ip);
+// 	}
+// }
 
 void encerrar(int ns, int s, int thread_id) {
 
@@ -132,12 +72,11 @@ void encerrar(int ns, int s, int thread_id) {
 			contatos[i].porta = -1;
 			contatos[i].thread_id = -1;
 			countContatos--;
-			printf("Thread[%i] esta na porta %i e possui o telefone %s\n", contatos[i].thread_id, contatos[i].porta, contatos[i].telefone);
 		}
 	};
 
 	close(ns);
-	print_contatos();
+	// print_contatos();
 	printf("Thread[%d] has finished ...\n", thread_id);
 	pthread_exit(NULL);
 }
@@ -157,7 +96,6 @@ void listar_contatos(int ns, int thread_id) {
 		exit(6);
 	}
 
-	printf("countContatosCliente: %i\n", countContatosCliente);	
 
 	for(int i = 0; i < countContatosCliente; i++) {
 
@@ -166,7 +104,6 @@ void listar_contatos(int ns, int thread_id) {
 			exit(6);
 		}
 
-		printf("telefone[%i]: %s - %lu\n", i, telefone, sizeof(telefone));
 
 		int j = 0; 
 		do {
@@ -180,8 +117,6 @@ void listar_contatos(int ns, int thread_id) {
 				j++;
 			}
 		} while(j < MaxArray && (strcmp(status.status, "Online") != 0));
-
-		// printf("%i) Telefone: %s - %s\n", i, status.telefone, status.status);
 
 		if (send(ns, &status, (sizeof(status)), 0) < 0) {
 			perror("Send() 3");
@@ -250,7 +185,6 @@ void setup_contato(int ns, int thread_id) {
 		if (strcmp(status.status, "ok") == 0) {
 			int i = 0;
 			do {
-				printf("Thread[%i] esta na porta %i e possui o telefone %s\n", contatos[i].thread_id, contatos[i].porta, contatos[i].telefone);
 				if ((strcmp(contatos[i].telefone, "")) == 0 && (contatos[i].porta == -1)) {
 					strcpy(contatos[i].telefone, aux_cliente.telefone);
 					strcpy(contatos[i].ip, aux_cliente.ip);
@@ -259,11 +193,11 @@ void setup_contato(int ns, int thread_id) {
 					strcpy(status.telefone, aux_cliente.telefone);
 					alteracao = true;
 					countContatos++;
+					printf("Thread[%i] esta na endereco %s:%i e possui o telefone %s\n", thread_id, aux_cliente.ip, aux_cliente.porta, aux_cliente.telefone);
 				}
 				i++;
 
 			}while((i < MaxArray) && (!alteracao));
-			printf("Thread[%i] esta na endereco %s:%i e possui o telefone %s\n", thread_id, aux_cliente.ip, aux_cliente.porta, aux_cliente.telefone);
 		}
 
 		if (send(ns, &status, sizeof(status), 0) == -1) {
@@ -271,7 +205,7 @@ void setup_contato(int ns, int thread_id) {
 			exit(6);
 		}
 
-		print_contatos();
+		// print_contatos();
 	} while(strcmp(status.status, "ok") != 0);
 };
 
@@ -291,22 +225,14 @@ void chat(int ns, int thread_id) {
 		perror("Recv()");
 		exit(6);
 	}
-		printf("Texto ... TEL: %s\n", telefone);
 
 	do {
-		printf("%i - status: %s", i, status);
-		printf("DoWhile ... TEL: %s\n", contatos[i].telefone);
 		if ((strcmp(telefone, contatos[i].telefone)) == 0) {	
-			printf("ENTROU AQUI -> %i - status: %s", i, status);
 			strcpy(status, "stop");
 
 			strcpy(aux_contato.telefone, contatos[i].telefone);
 			strcpy(aux_contato.ip, contatos[i].ip);
 			aux_contato.porta = contatos[i].porta;
-
-			printf("Telefone: %s\n", aux_contato.telefone);
-			printf("Porta: %i\n", aux_contato.porta);
-			printf("IP: %s\n", aux_contato.ip);
 
 			if (send(ns, &aux_contato, (sizeof(aux_contato)), 0) < 0) {
 				perror("Send() 3");
@@ -346,18 +272,12 @@ void *recebe_comando(void* parameters){
         }
 
 		switch (comando) {
-        case 1:
-			printf("entrou aqui ...");
-            // adicionar_contato(args.ns);
-            break;
-
         case 2:
             listar_contatos(args.ns, args.thread_id);
             break;
         
         case 3:
 			chat(args.ns, args.thread_id);
-			printf("VOLTOU DO CHAT ...\n");
             break;
 
         case 5:
