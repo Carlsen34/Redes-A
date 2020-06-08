@@ -597,7 +597,7 @@ void create_socket() {
 
 void adicionar_contato() {
     FILE *fp;
-    char telefone[8];
+    char telefone[DIGITOSTELEFONE];
     char nomeArquivo[20], file_name[20];
 
     create_socket();
